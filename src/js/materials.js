@@ -1,0 +1,1485 @@
+// materials.js — Materiales físicos, shaders de cables/aura, movimiento de plantas,
+// ripple GPGPU en semillas. Todos los paneles conectados a Theatre.js.
+
+import * as THREE from 'three'
+import gsap from 'gsap'
+import { types } from '@theatre/core'
+import { sheet } from './theatre.js'
+import { CONFIG } from './config.js'
+
+export const BLOOM_LAYER = 1
+
+// ── Uniforms compartidos ──────────────────────────────────────────────────────
+
+export const movimientoUniforms = {
+  u_time:         { value: 0.0 },
+  u_maxDisp:      { value: 0.05 },
+  u_breathSpeed:  { value: 2.0 },
+  u_breathFreq:   { value: 5.0 },
+  u_wobbleSpeed:  { value: 1.5 },
+  u_wobbleFreq:   { value: 15.0 },
+  u_wobbleBlend:  { value: 0.4 },
+  u_swaySpeed:    { value: 1.0 },
+  u_swayFreq:     { value: 2.5 },
+  u_swayAmp:      { value: 0.1 },
+  u_anchorHeight: { value: 0.3 },
+}
+
+export const raizUniforms = {
+  uTime:              { value: 0.0 },
+  uCrecimientoActual: { value: 0.0 },
+  uLargoPunta:        { value: 2.0 },
+  uSpeed:             { value: 1.5 },
+  uWavelength:        { value: 30.0 },
+  uPulseWidth:        { value: 0.15 },
+  uColorOscuro:       { value: new THREE.Color(0x050505) },
+  uColorPulse:        { value: new THREE.Color(0x0c3926) },
+  uPulseIntensity:    { value: 3.0 },
+  uMouseRayOrigin:    { value: new THREE.Vector3(99999, 99999, 99999) },
+  uMouseRayDir:       { value: new THREE.Vector3(0, 0, -1) },
+  uHoverRadius:       { value: 2.5 },
+  uSwaySpeed:         { value: 0.164 },
+  uSwayFreq:          { value: 0.55 },
+  uSwayAmp:           { value: 0.228 },
+  uAnchorEnd:         { value: 10.0 },
+  uThicknessScale:    { value: 0.0 },
+  uBrightness:        { value: 1.0 },
+  uSwayYScale:        { value: 0.3 },
+  uPulseSharpness:    { value: 1.0 },
+  // Aura holográfica — leídos por raizAuraMaterial (misma ref de objeto)
+  uAuraAmp:           { value: 1.5 },
+  uAuraNoiseScale:    { value: 2.0 },
+  uAuraNoiseSpeed:    { value: 0.5 },
+  uAuraHoverBoost:    { value: 2.0 },
+  uAuraGlow:          { value: 0.8 },
+  uAuraBase:          { value: 0.25 },
+  uAuraPulseBoost:    { value: 1.2 },
+  uAuraFresnelPow:    { value: 2.5 },
+  uAuraColor:         { value: new THREE.Color(0x0c3926) },
+  uAuraOpacity:       { value: 1.0 },
+}
+
+// ── GLSL simplex noise (compartido entre shaders) ─────────────────────────────
+const _SNOISE_GLSL = `
+  vec4 _permute(vec4 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
+  vec4 _taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+  float _snoise(vec3 v) {
+    const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+    vec3 i  = floor(v + dot(v, C.yyy));
+    vec3 x0 = v - i + dot(i, C.xxx);
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min(g.xyz, l.zxy);
+    vec3 i2 = max(g.xyz, l.zxy);
+    vec3 x1 = x0 - i1 + C.xxx;
+    vec3 x2 = x0 - i2 + C.yyy;
+    vec3 x3 = x0 - D.yyy;
+    i = mod(i, 289.0);
+    vec4 p = _permute(_permute(_permute(
+               i.z + vec4(0.0, i1.z, i2.z, 1.0))
+             + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+             + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+    float n_ = 0.142857142857;
+    vec3  ns = n_ * D.wyz - D.xzx;
+    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_);
+    vec4 x = x_ * ns.x + ns.yyyy;
+    vec4 y = y_ * ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+    vec4 b0 = vec4(x.xy, y.xy);
+    vec4 b1 = vec4(x.zw, y.zw);
+    vec4 s0 = floor(b0)*2.0+1.0;
+    vec4 s1 = floor(b1)*2.0+1.0;
+    vec4 sh = -step(h, vec4(0.0));
+    vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+    vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+    vec3 p0 = vec3(a0.xy, h.x);
+    vec3 p1 = vec3(a0.zw, h.y);
+    vec3 p2 = vec3(a1.xy, h.z);
+    vec3 p3 = vec3(a1.zw, h.w);
+    vec4 norm = _taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+    p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+    vec4 m = max(0.6 - vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot(m*m, vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+  }
+`
+
+// ── ShaderMaterial de FLOR_GRANDE_RAICES ─────────────────────────────────────
+
+export const raizFGUniforms = {
+  uTime:              { value: 0.0 },
+  uCrecimientoActual: { value: 1.05 },
+  uLargoPunta:        { value: 0.205 },
+  uSpeed:             { value: 0.65 },
+  uWavelength:        { value: 0.386 },
+  uPulseWidth:        { value: 0.36 },
+  uColorOscuro:       { value: new THREE.Color(0x050505) },
+  uColorPulse:        { value: new THREE.Color(0x0c3926) },
+  uPulseIntensity:    { value: 2.5 },
+}
+
+export const raizFGMaterial = new THREE.ShaderMaterial({
+  uniforms: raizFGUniforms,
+  side: THREE.DoubleSide,
+  vertexShader: `
+    attribute float aPulse;
+    varying float vDist;
+    void main() {
+      vDist = aPulse;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying float vDist;
+    uniform float uTime;
+    uniform float uCrecimientoActual;
+    uniform float uLargoPunta;
+    uniform float uSpeed;
+    uniform float uWavelength;
+    uniform float uPulseWidth;
+    uniform vec3  uColorOscuro;
+    uniform vec3  uColorPulse;
+    uniform float uPulseIntensity;
+
+    void main() {
+      if (vDist > uCrecimientoActual) discard;
+      float u_repeating = fract((vDist / uWavelength) - (uTime * uSpeed));
+      float dist_pulse  = abs(u_repeating - 0.5);
+      float pulse = 1.0 - smoothstep(0.0, uPulseWidth, dist_pulse);
+      float mascara_punta = smoothstep(uCrecimientoActual - uLargoPunta, uCrecimientoActual, vDist);
+      pulse *= (1.0 - mascara_punta);
+      gl_FragColor = vec4(mix(uColorOscuro, uColorPulse * uPulseIntensity, pulse), 1.0);
+    }
+  `,
+})
+
+const raizFGObj = sheet.object('Raíz Flor Grande', {
+  crecimiento:    types.number(1.05,  { range: [0, 1.5],    nudgeMultiplier: 0.01 }),
+  largoPunta:     types.number(0.205, { range: [0, 1],      nudgeMultiplier: 0.005 }),
+  speed:          types.number(0.65,  { range: [0, 10],     nudgeMultiplier: 0.05 }),
+  wavelength:     types.number(0.386, { range: [0.005, 1],  nudgeMultiplier: 0.002 }),
+  pulseWidth:     types.number(0.36,  { range: [0, 1],      nudgeMultiplier: 0.01 }),
+  pulseIntensity: types.number(2.5,   { range: [0, 50],     nudgeMultiplier: 0.1 }),
+  colorOscuro:    types.rgba({ r: 0.0196, g: 0.0196, b: 0.0196, a: 1 }),
+  colorPulse:     types.rgba({ r: 0.047, g: 0.224, b: 0.149, a: 1 }),
+})
+
+raizFGObj.onValuesChange((v) => {
+  raizFGUniforms.uCrecimientoActual.value = v.crecimiento
+  raizFGUniforms.uLargoPunta.value        = v.largoPunta
+  raizFGUniforms.uSpeed.value             = v.speed
+  raizFGUniforms.uWavelength.value        = v.wavelength
+  raizFGUniforms.uPulseWidth.value        = v.pulseWidth
+  raizFGUniforms.uPulseIntensity.value    = v.pulseIntensity
+  raizFGUniforms.uColorOscuro.value.setRGB(v.colorOscuro.r, v.colorOscuro.g, v.colorOscuro.b)
+  raizFGUniforms.uColorPulse.value.setRGB(v.colorPulse.r, v.colorPulse.g, v.colorPulse.b)
+})
+
+// ── ShaderMaterial de cables_ext (pulso + curl noise + hover) ────────────────
+
+const _RAIZ_SNOISE_GLSL = `
+  vec4 permute(vec4 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
+  vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+  float snoise(vec3 v) {
+    const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+    vec3 i  = floor(v + dot(v, C.yyy));
+    vec3 x0 = v - i + dot(i, C.xxx);
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min(g.xyz, l.zxy);
+    vec3 i2 = max(g.xyz, l.zxy);
+    vec3 x1 = x0 - i1 + 1.0 * C.xxx;
+    vec3 x2 = x0 - i2 + 2.0 * C.xxx;
+    vec3 x3 = x0 - 1.0 + 3.0 * C.xxx;
+    i = mod(i, 289.0);
+    vec4 p = permute(permute(permute(
+               i.z + vec4(0.0, i1.z, i2.z, 1.0))
+             + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+             + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+    float n_ = 1.4142135623730950488016887242097;
+    vec3  ns = n_ * D.wyz - D.xzx;
+    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_);
+    vec4 x = x_ * ns.x + ns.yyyy;
+    vec4 y = y_ * ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+    vec4 b0 = vec4(x.xy, y.xy);
+    vec4 b1 = vec4(x.zw, y.zw);
+    vec4 s0 = floor(b0) * 2.0 + 1.0;
+    vec4 s1 = floor(b1) * 2.0 + 1.0;
+    vec4 sh = -step(h, vec4(0.0));
+    vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+    vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+    vec3 p0 = vec3(a0.xy, h.x);
+    vec3 p1 = vec3(a0.zw, h.y);
+    vec3 p2 = vec3(a1.xy, h.z);
+    vec3 p3 = vec3(a1.zw, h.w);
+    vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+    p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+    vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot(m * m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+  }
+
+  vec3 snoiseVec3(vec3 x) {
+    return vec3(
+      snoise(vec3(x)),
+      snoise(vec3(x.y - 19.1, x.z + 33.4, x.x + 47.2)),
+      snoise(vec3(x.z + 74.2, x.x - 124.5, x.y + 99.4))
+    );
+  }
+
+  vec3 curlNoise(vec3 p) {
+    const float e = 0.1;
+    vec3 dx = vec3(e, 0.0, 0.0);
+    vec3 dy = vec3(0.0, e, 0.0);
+    vec3 dz = vec3(0.0, 0.0, e);
+    vec3 p_x0 = snoiseVec3(p - dx); vec3 p_x1 = snoiseVec3(p + dx);
+    vec3 p_y0 = snoiseVec3(p - dy); vec3 p_y1 = snoiseVec3(p + dy);
+    vec3 p_z0 = snoiseVec3(p - dz); vec3 p_z1 = snoiseVec3(p + dz);
+    float x = p_y1.z - p_y0.z - p_z1.y + p_z0.y;
+    float y = p_z1.x - p_z0.x - p_x1.z + p_x0.z;
+    float z = p_x1.y - p_x0.y - p_y1.x + p_y0.x;
+    return normalize(vec3(x, y, z) / (2.0 * e));
+  }
+`
+
+export const raizMaterial = new THREE.ShaderMaterial({
+  uniforms: raizUniforms,
+  side: THREE.DoubleSide,
+  vertexShader: `
+    attribute vec2 uv1;
+    varying float vDist;
+
+    uniform float uTime;
+    uniform vec3  uMouseRayOrigin;
+    uniform vec3  uMouseRayDir;
+    uniform float uHoverRadius;
+    uniform float uSwaySpeed;
+    uniform float uSwayFreq;
+    uniform float uSwayAmp;
+    uniform float uSwayYScale;
+    uniform float uAnchorEnd;
+    uniform float uThicknessScale;
+
+    ${_RAIZ_SNOISE_GLSL}
+
+    void main() {
+      vDist = uv1.x;
+
+      float anchor_mask = uAnchorEnd > 0.001
+        ? smoothstep(0.0, uAnchorEnd, uv1.x) : 1.0;
+
+      vec3 noise_pos = position * uSwayFreq;
+      noise_pos.y += uTime * uSwaySpeed;
+      vec3 flow = curlNoise(noise_pos);
+
+      vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+      vec3 toVert = worldPos - uMouseRayOrigin;
+      float projOnRay = dot(toVert, uMouseRayDir);
+      vec3 closestOnRay = uMouseRayOrigin + uMouseRayDir * projOnRay;
+      float rayDist = length(worldPos - closestOnRay);
+      float mouse_mask = 1.0 - smoothstep(0.0, uHoverRadius, rayDist);
+      if (projOnRay < 0.0) mouse_mask = 0.0;
+
+      vec3 displacement = flow * uSwayAmp * anchor_mask * mouse_mask;
+      displacement.y *= uSwayYScale;
+
+      vec3 thickened = position + normal * uThicknessScale;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(thickened + displacement, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying float vDist;
+    uniform float uTime;
+    uniform float uCrecimientoActual;
+    uniform float uLargoPunta;
+    uniform float uSpeed;
+    uniform float uWavelength;
+    uniform float uPulseWidth;
+    uniform float uPulseSharpness;
+    uniform vec3  uColorOscuro;
+    uniform vec3  uColorPulse;
+    uniform float uPulseIntensity;
+    uniform float uBrightness;
+
+    void main() {
+      if (vDist > uCrecimientoActual) discard;
+
+      float u_repeating = fract((vDist / uWavelength) - (uTime * uSpeed));
+      float dist_pulse  = abs(u_repeating - 0.5);
+      float pulse = pow(1.0 - smoothstep(0.0, uPulseWidth, dist_pulse), uPulseSharpness);
+
+      float mascara_punta = smoothstep(
+        uCrecimientoActual - uLargoPunta, uCrecimientoActual, vDist);
+      pulse *= (1.0 - mascara_punta);
+
+      gl_FragColor = vec4(mix(uColorOscuro, uColorPulse * uPulseIntensity, pulse) * uBrightness, 1.0);
+    }
+  `,
+})
+
+// ── Aura holográfica de cables_ext (shell aditivo con fresnel) ────────────────
+// Reutiliza la misma geometría de cables_ext (compartida por referencia → 0 VRAM
+// extra). Los uniforms son los mismos objetos de raizUniforms — actualizarlos
+// en el panel actualiza ambos materiales automáticamente.
+
+export const raizAuraMaterial = new THREE.ShaderMaterial({
+  uniforms: raizUniforms,
+  side: THREE.DoubleSide,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  vertexShader: `
+    attribute vec2 uv1;
+    varying float vPulse;
+    varying float vFresnel;
+    varying float vDist;
+
+    uniform float uTime;
+    uniform float uCrecimientoActual;
+    uniform float uLargoPunta;
+    uniform float uSpeed;
+    uniform float uWavelength;
+    uniform float uPulseWidth;
+    uniform vec3  uMouseRayOrigin;
+    uniform vec3  uMouseRayDir;
+    uniform float uHoverRadius;
+    uniform float uAuraAmp;
+    uniform float uAuraNoiseScale;
+    uniform float uAuraNoiseSpeed;
+    uniform float uAuraHoverBoost;
+
+    vec4 permute(vec4 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
+    vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+    float snoise(vec3 v) {
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+      vec3 i  = floor(v + dot(v, C.yyy));
+      vec3 x0 = v - i + dot(i, C.xxx);
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g.xyz, l.zxy);
+      vec3 i2 = max(g.xyz, l.zxy);
+      vec3 x1 = x0 - i1 + 1.0 * C.xxx;
+      vec3 x2 = x0 - i2 + 2.0 * C.xxx;
+      vec3 x3 = x0 - 1.0 + 3.0 * C.xxx;
+      i = mod(i, 289.0);
+      vec4 p = permute(permute(permute(
+                 i.z + vec4(0.0, i1.z, i2.z, 1.0))
+               + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+               + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+      float n_ = 1.4142135623730950488016887242097;
+      vec3  ns = n_ * D.wyz - D.xzx;
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+      vec4 x_ = floor(j * ns.z);
+      vec4 y_ = floor(j - 7.0 * x_);
+      vec4 x = x_ * ns.x + ns.yyyy;
+      vec4 y = y_ * ns.x + ns.yyyy;
+      vec4 h = 1.0 - abs(x) - abs(y);
+      vec4 b0 = vec4(x.xy, y.xy);
+      vec4 b1 = vec4(x.zw, y.zw);
+      vec4 s0 = floor(b0) * 2.0 + 1.0;
+      vec4 s1 = floor(b1) * 2.0 + 1.0;
+      vec4 sh = -step(h, vec4(0.0));
+      vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+      vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+      vec3 p0 = vec3(a0.xy, h.x);
+      vec3 p1 = vec3(a0.zw, h.y);
+      vec3 p2 = vec3(a1.xy, h.z);
+      vec3 p3 = vec3(a1.zw, h.w);
+      vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+      p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m * m;
+      return 42.0 * dot(m * m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    }
+
+    void main() {
+      vDist = uv1.x;
+
+      float u_repeating = fract((vDist / uWavelength) - (uTime * uSpeed));
+      float dist_pulse = abs(u_repeating - 0.5);
+      float pulse = 1.0 - smoothstep(0.0, uPulseWidth, dist_pulse);
+      float mascara_punta = smoothstep(uCrecimientoActual - uLargoPunta, uCrecimientoActual, vDist);
+      pulse *= (1.0 - mascara_punta);
+
+      vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+      vec3 toVert = worldPos - uMouseRayOrigin;
+      float projOnRay = dot(toVert, uMouseRayDir);
+      vec3 closestOnRay = uMouseRayOrigin + uMouseRayDir * projOnRay;
+      float rayDist = length(worldPos - closestOnRay);
+      float mouse_mask = 1.0 - smoothstep(0.0, uHoverRadius, rayDist);
+      if (projOnRay < 0.0) mouse_mask = 0.0;
+
+      vPulse = pulse * (1.0 + mouse_mask * uAuraHoverBoost);
+
+      float n = snoise(position * uAuraNoiseScale + vec3(uTime * uAuraNoiseSpeed));
+      float ampMod = 1.0 + n * 0.3;
+
+      vec3 newPosition = position + normal * uAuraAmp * ampMod;
+
+      vec4 mvPos = modelViewMatrix * vec4(newPosition, 1.0);
+      vec3 viewNormal = normalize(normalMatrix * normal);
+      vec3 viewDir = normalize(-mvPos.xyz);
+      vFresnel = 1.0 - max(dot(viewDir, viewNormal), 0.0);
+
+      if (vDist > uCrecimientoActual) { vPulse = 0.0; vFresnel = 0.0; }
+
+      gl_Position = projectionMatrix * mvPos;
+    }
+  `,
+  fragmentShader: `
+    varying float vPulse;
+    varying float vFresnel;
+    varying float vDist;
+    uniform vec3  uAuraColor;
+    uniform float uAuraGlow;
+    uniform float uAuraBase;
+    uniform float uAuraPulseBoost;
+    uniform float uAuraFresnelPow;
+    uniform float uAuraOpacity;
+
+    void main() {
+      if (vDist <= 0.0001 && vPulse <= 0.0001 && vFresnel <= 0.0001) discard;
+
+      float fres = pow(clamp(vFresnel, 0.0, 1.0), uAuraFresnelPow);
+      float intensidad = uAuraBase + vPulse * uAuraPulseBoost;
+      float alpha = intensidad * fres * uAuraOpacity;
+      if (alpha < 0.002) discard;
+
+      vec3 c = uAuraColor * uAuraGlow * intensidad;
+      gl_FragColor = vec4(c, alpha);
+    }
+  `,
+})
+
+// ── Panel Theatre: Raíz (cables + aura) ──────────────────────────────────────
+
+const raizObj = sheet.object('Raíz', {
+  crecimiento:    types.number(0.0,   { range: [0, 200],   nudgeMultiplier: 0.5  }),
+  largoPunta:     types.number(2.0,   { range: [0, 20],    nudgeMultiplier: 0.1  }),
+  thickness:      types.number(0.0,   { range: [-1, 5],    nudgeMultiplier: 0.01 }),
+  brightness:     types.number(1.0,   { range: [0, 5],     nudgeMultiplier: 0.05 }),
+  speed:          types.number(1.5,   { range: [0, 10],    nudgeMultiplier: 0.05 }),
+  wavelength:     types.number(30.0,  { range: [0.5, 200], nudgeMultiplier: 0.5  }),
+  pulseWidth:     types.number(0.15,  { range: [0, 1],     nudgeMultiplier: 0.01 }),
+  pulseSharpness: types.number(1.0,   { range: [0.1, 10],  nudgeMultiplier: 0.05 }),
+  pulseIntensity: types.number(3.0,   { range: [0, 50],    nudgeMultiplier: 0.1  }),
+  colorOscuro:    types.rgba({ r: 0.02, g: 0.02, b: 0.02, a: 1 }),
+  colorPulse:     types.rgba({ r: 0.047, g: 0.224, b: 0.149, a: 1 }),  // color inicial (#0c3926)
+  colorPulseFin:  types.rgba({ r: 0.039, g: 0.110, b: 0.365, a: 1 }),  // color al apretar Start (#0a1c5d)
+  hoverRadius:    types.number(2.5,   { range: [0, 50],    nudgeMultiplier: 0.05 }),
+  swaySpeed:      types.number(0.164, { range: [0, 5],     nudgeMultiplier: 0.01 }),
+  swayFreq:       types.number(0.55,  { range: [0, 5],     nudgeMultiplier: 0.01 }),
+  swayAmp:        types.number(0.228, { range: [0, 5],     nudgeMultiplier: 0.01 }),
+  swayYScale:     types.number(0.3,   { range: [0, 1],     nudgeMultiplier: 0.01 }),
+  anchorEnd:      types.number(10.0,  { range: [0, 200],   nudgeMultiplier: 0.5  }),
+  auraAmp:        types.number(1.5,   { range: [0, 10],    nudgeMultiplier: 0.05 }),
+  auraNoiseScale: types.number(2.0,   { range: [0, 20],    nudgeMultiplier: 0.05 }),
+  auraNoiseSpeed: types.number(0.5,   { range: [0, 5],     nudgeMultiplier: 0.01 }),
+  auraHoverBoost: types.number(2.0,   { range: [0, 20],    nudgeMultiplier: 0.05 }),
+  auraGlow:       types.number(0.8,   { range: [0, 10],    nudgeMultiplier: 0.05 }),
+  auraBase:       types.number(0.25,  { range: [0, 1],     nudgeMultiplier: 0.01 }),
+  auraPulseBoost: types.number(1.2,   { range: [0, 5],     nudgeMultiplier: 0.05 }),
+  auraFresnelPow: types.number(2.5,   { range: [0.1, 10],  nudgeMultiplier: 0.05 }),
+  auraColor:      types.rgba({ r: 0.047, g: 0.224, b: 0.149, a: 1 }),  // por defecto igual que colorPulse
+  auraOpacity:    types.number(1.0,   { range: [0, 1],     nudgeMultiplier: 0.01 }),
+})
+
+let _rootsStarted    = false
+let _colorPulseInit  = new THREE.Color(0x0c3926)
+let _colorPulseFin   = new THREE.Color(0x0a1c5d)
+let _colorTween      = null
+
+raizObj.onValuesChange((v) => {
+  if (_rootsStarted) raizUniforms.uCrecimientoActual.value = v.crecimiento
+  raizUniforms.uLargoPunta.value        = v.largoPunta
+  raizUniforms.uThicknessScale.value    = v.thickness
+  raizUniforms.uBrightness.value        = v.brightness
+  raizUniforms.uSpeed.value             = v.speed
+  raizUniforms.uWavelength.value        = v.wavelength
+  raizUniforms.uPulseWidth.value        = v.pulseWidth
+  raizUniforms.uPulseSharpness.value    = v.pulseSharpness
+  raizUniforms.uPulseIntensity.value    = v.pulseIntensity
+  raizUniforms.uColorOscuro.value.setRGB(v.colorOscuro.r, v.colorOscuro.g, v.colorOscuro.b)
+  raizUniforms.uColorPulse.value.setRGB(v.colorPulse.r, v.colorPulse.g, v.colorPulse.b)
+  _colorPulseInit.setRGB(v.colorPulse.r, v.colorPulse.g, v.colorPulse.b)
+  _colorPulseFin.setRGB(v.colorPulseFin.r, v.colorPulseFin.g, v.colorPulseFin.b)
+  raizUniforms.uHoverRadius.value       = v.hoverRadius
+  raizUniforms.uSwaySpeed.value         = v.swaySpeed
+  raizUniforms.uSwayFreq.value          = v.swayFreq
+  raizUniforms.uSwayAmp.value           = v.swayAmp
+  raizUniforms.uSwayYScale.value        = v.swayYScale
+  raizUniforms.uAnchorEnd.value         = v.anchorEnd
+  raizUniforms.uAuraAmp.value           = v.auraAmp
+  raizUniforms.uAuraNoiseScale.value    = v.auraNoiseScale
+  raizUniforms.uAuraNoiseSpeed.value    = v.auraNoiseSpeed
+  raizUniforms.uAuraHoverBoost.value    = v.auraHoverBoost
+  raizUniforms.uAuraGlow.value          = v.auraGlow
+  raizUniforms.uAuraBase.value          = v.auraBase
+  raizUniforms.uAuraPulseBoost.value    = v.auraPulseBoost
+  raizUniforms.uAuraFresnelPow.value    = v.auraFresnelPow
+  raizUniforms.uAuraColor.value.setRGB(v.auraColor.r, v.auraColor.g, v.auraColor.b)
+  raizUniforms.uAuraOpacity.value       = v.auraOpacity
+})
+
+// ── Material físico base ──────────────────────────────────────────────────────
+
+const _tmpColor = new THREE.Color()
+
+// Una textura por proyecto — usa CONFIG.projects[i].image
+// ── Textura de semillas: imagen + texto en 16:9, fuente Chakra Petch ──────────
+// mapTex  = imagen del proyecto + vignette + texto (siempre visible en difusa)
+// emisTex = texto en blanco sobre negro → emissiveMap para bloom
+// El canvas se dibuja desde applyMaterials una vez detectada la orientación UV.
+
+const _TEX_W = 1024
+const _TEX_H  = 576   // 16:9
+
+function _drawSemillaText(ctx, p, w, h) {
+  const title       = p.title   ?? ''
+  const company     = p.company ?? ''
+  const showCompany = company && company !== title
+
+  ctx.textAlign    = 'center'
+  ctx.textBaseline = 'middle'
+
+  if (showCompany) {
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'
+    ctx.font      = `400 ${Math.round(h * 0.155)}px "Chakra Petch", sans-serif`
+    ctx.fillText(title,   w / 2, h * 0.43)
+    ctx.fillStyle = 'rgba(255,255,255,0.58)'
+    ctx.font      = `300 ${Math.round(h * 0.082)}px "Chakra Petch", sans-serif`
+    ctx.fillText(company, w / 2, h * 0.59)
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'
+    ctx.font      = `400 ${Math.round(h * 0.155)}px "Chakra Petch", sans-serif`
+    ctx.fillText(title, w / 2, h / 2)
+  }
+}
+
+// Create canvas + texture pairs upfront (drawing happens later in applyMaterials
+// once we know the UV flip orientation for each semilla mesh).
+const _semillaCanvases = CONFIG.projects.map(() => {
+  const mapCanvas = document.createElement('canvas')
+  mapCanvas.width = _TEX_W; mapCanvas.height = _TEX_H
+  const emCanvas  = document.createElement('canvas')
+  emCanvas.width  = _TEX_W; emCanvas.height  = _TEX_H
+
+  const mapTex = new THREE.CanvasTexture(mapCanvas)
+  mapTex.colorSpace = THREE.SRGBColorSpace
+  mapTex.wrapS = THREE.RepeatWrapping; mapTex.wrapT = THREE.RepeatWrapping
+
+  const emisTex = new THREE.CanvasTexture(emCanvas)
+  emisTex.colorSpace = THREE.SRGBColorSpace
+  emisTex.wrapS = THREE.RepeatWrapping; emisTex.wrapT = THREE.RepeatWrapping
+
+  return { mapCanvas, emCanvas, mapTex, emisTex }
+})
+
+const _texPerSemilla  = _semillaCanvases.map(c => c.mapTex)
+const _emisPerSemilla = _semillaCanvases.map(c => c.emisTex)
+
+// VideoTexture per semilla — replaces the static canvas image map
+const _videoTexPerSemilla = CONFIG.projects.map((p) => {
+  if (!p.video) return null
+  const vid = document.createElement('video')
+  vid.src         = p.video + '.mp4'
+  vid.muted       = true
+  vid.loop        = true
+  vid.playsInline = true
+  vid.setAttribute('playsinline', '')
+  vid.play().catch(() => {})
+  const tex      = new THREE.VideoTexture(vid)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.minFilter  = THREE.LinearFilter
+  tex.magFilter  = THREE.LinearFilter
+  tex.wrapS      = THREE.RepeatWrapping
+  tex.wrapT      = THREE.RepeatWrapping
+  return tex
+})
+
+// Called from applyMaterials. Orientation/range is handled via texture.repeat/offset —
+// the canvas is always drawn normally (no flip transforms needed here).
+function _drawSemillaCanvas(idx, p) {
+  const { mapCanvas, emCanvas, mapTex, emisTex } = _semillaCanvases[idx]
+  const W = _TEX_W, H = _TEX_H
+
+  document.fonts.load(`400 64px "Chakra Petch"`).then(() => {
+    // ── Emissive: white text on black ──────────────────────────────
+    const emCtx = emCanvas.getContext('2d')
+    emCtx.fillStyle = '#000'
+    emCtx.fillRect(0, 0, W, H)
+    _drawSemillaText(emCtx, p, W, H)
+    emisTex.needsUpdate = true
+
+    // ── Map: dark placeholder + text immediately, image when ready ──
+    const mapCtx = mapCanvas.getContext('2d')
+    mapCtx.fillStyle = '#0d0d0d'
+    mapCtx.fillRect(0, 0, W, H)
+    _drawSemillaText(mapCtx, p, W, H)
+    mapTex.needsUpdate = true
+
+    if (p.image) {
+      const img = new Image()
+      img.onload = () => {
+        mapCtx.clearRect(0, 0, W, H)
+        mapCtx.drawImage(img, 0, 0, W, H)
+        const grad = mapCtx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.38)
+        grad.addColorStop(0, 'rgba(0,0,0,0.58)')
+        grad.addColorStop(1, 'rgba(0,0,0,0)')
+        mapCtx.fillStyle = grad
+        mapCtx.fillRect(0, 0, W, H)
+        _drawSemillaText(mapCtx, p, W, H)
+        mapTex.needsUpdate = true
+      }
+      img.onerror = () => { mapTex.needsUpdate = true }
+      img.src = p.image
+    }
+  })
+}
+
+const MAP_NAMES = [
+  'map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap',
+  'aoMap', 'alphaMap', 'bumpMap', 'displacementMap',
+  'specularColorMap', 'sheenColorMap', 'clearcoatMap',
+]
+
+function _transferirMaps(orig, dst) {
+  for (const k of MAP_NAMES) {
+    if (orig[k]) dst[k] = orig[k]
+  }
+  if (orig.color)    dst.userData.origColor    = orig.color.clone()
+  if (orig.emissive) dst.userData.origEmissive = orig.emissive.clone()
+}
+
+function _aplicarValoresPetalos(mat, v) {
+  if (mat.userData.origColor) {
+    mat.color.copy(mat.userData.origColor)
+      .multiply(_tmpColor.setRGB(v.color.r, v.color.g, v.color.b))
+  } else {
+    mat.color.setRGB(v.color.r, v.color.g, v.color.b)
+  }
+  mat.iridescence               = v.iridescence
+  mat.iridescenceIOR            = v.iridescenceIOR
+  mat.iridescenceThicknessRange = [v.iridescenceThickMin, v.iridescenceThickMax]
+  // Defensivo: paneles opacos no incluyen transmission/thickness
+  if ('transmission' in v) mat.transmission = v.transmission
+  if ('thickness' in v)    mat.thickness    = v.thickness
+  mat.roughness                 = v.roughness
+  mat.metalness                 = v.metalness
+  mat.ior                       = v.ior
+  if (mat.userData.origEmissive) {
+    mat.emissive.copy(mat.userData.origEmissive)
+      .multiply(_tmpColor.setRGB(v.emissive.r, v.emissive.g, v.emissive.b))
+  } else {
+    mat.emissive.setRGB(v.emissive.r, v.emissive.g, v.emissive.b)
+  }
+  mat.emissiveIntensity = v.emissiveIntensity
+  mat.envMapIntensity   = v.envMapIntensity
+}
+
+function _crearMaterialPetalos(nombrePanel, { conBloom = false, opaco = false, bloomDefault = false, transmissionDefault = 1.0 } = {}) {
+  const mat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    iridescence: 1.0,
+    iridescenceIOR: 1.5,
+    iridescenceThicknessRange: [100, 400],
+    transparent: !opaco,
+    transmission: opaco ? 0.0 : transmissionDefault,
+    opacity: 1.0,
+    roughness: 0.1,
+    metalness: 0.0,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.3,
+    depthWrite: opaco,
+    side: opaco ? THREE.FrontSide : THREE.DoubleSide,
+  })
+
+  const seguidores  = []
+  const nodosBloom  = []
+  let ultimosValores = null
+
+  const props = {
+    color:               types.rgba({ r: 1, g: 1, b: 1, a: 1 }),
+    iridescence:         types.number(1.0,  { range: [0, 1],     nudgeMultiplier: 0.01 }),
+    iridescenceIOR:      types.number(1.5,  { range: [1, 2.5],   nudgeMultiplier: 0.01 }),
+    iridescenceThickMin: types.number(100,  { range: [0, 1000],  nudgeMultiplier: 5    }),
+    iridescenceThickMax: types.number(400,  { range: [0, 1000],  nudgeMultiplier: 5    }),
+    roughness:           types.number(0.1,  { range: [0, 1],     nudgeMultiplier: 0.01 }),
+    metalness:           types.number(0.0,  { range: [0, 1],     nudgeMultiplier: 0.01 }),
+    ior:                 types.number(1.5,  { range: [1, 2.5],   nudgeMultiplier: 0.01 }),
+    emissive:            types.rgba({ r: 1, g: 1, b: 1, a: 1 }),
+    emissiveIntensity:   types.number(0.3,  { range: [0, 5],     nudgeMultiplier: 0.05 }),
+    envMapIntensity:     types.number(1.0,  { range: [0, 5],     nudgeMultiplier: 0.05 }),
+  }
+  // Paneles no-opacos incluyen sliders de transmission/thickness
+  if (!opaco) {
+    props.transmission = types.number(transmissionDefault, { range: [0, 1], nudgeMultiplier: 0.01 })
+    props.thickness    = types.number(0.5, { range: [0, 5], nudgeMultiplier: 0.05 })
+  }
+  if (conBloom) props.bloom = types.boolean(bloomDefault)
+
+  const obj = sheet.object(nombrePanel, props)
+  obj.onValuesChange((v) => {
+    ultimosValores = v
+    _aplicarValoresPetalos(mat, v)
+    for (const s of seguidores) _aplicarValoresPetalos(s, v)
+    if (conBloom) {
+      for (const n of nodosBloom) {
+        if (v.bloom) n.layers.enable(BLOOM_LAYER)
+        else         n.layers.disable(BLOOM_LAYER)
+      }
+    }
+  })
+
+  function agregarSeguidor(s, nodo) {
+    seguidores.push(s)
+    if (conBloom && nodo) nodosBloom.push(nodo)
+    if (ultimosValores) {
+      _aplicarValoresPetalos(s, ultimosValores)
+      if (conBloom && nodo) {
+        if (ultimosValores.bloom) nodo.layers.enable(BLOOM_LAYER)
+        else                      nodo.layers.disable(BLOOM_LAYER)
+      }
+    }
+  }
+
+  // Set emissive on the base material AND every follower mesh material
+  function setEmissiveAll(color) {
+    mat.emissive.copy(color)
+    for (const s of seguidores) s.emissive.copy(color)
+  }
+
+  // Get the current emissive from the first follower (actual scene mesh), or from mat
+  function getEmissive() {
+    const src = seguidores.length > 0 ? seguidores[0] : mat
+    return src.emissive.clone()
+  }
+
+  return { mat, agregarSeguidor, setEmissiveAll, getEmissive }
+}
+
+const { mat: chipMaterial,         agregarSeguidor: chipFollow,         setEmissiveAll: chipSetEmissive,         getEmissive: chipGetEmissive         } = _crearMaterialPetalos('Chip')
+const { mat: florGrandeMaterial,   agregarSeguidor: florGrandeFollow                                                                                     } = _crearMaterialPetalos('Flor Grande')
+const { mat: terrainMaterial,      agregarSeguidor: terrainFollow                                                                                          } = _crearMaterialPetalos('Terrain', { conBloom: false, opaco: false, transmissionDefault: 0.88 })
+const { mat: semillasMaterial,     agregarSeguidor: semillasFollow                                                                                        } = _crearMaterialPetalos('Semillas', { conBloom: false, opaco: true })
+const { mat: florCentralMaterial,  agregarSeguidor: florCentralFollow,  setEmissiveAll: florCentralSetEmissive,  getEmissive: florCentralGetEmissive  } = _crearMaterialPetalos('Flor Central', { conBloom: true, opaco: true, bloomDefault: true })
+const { mat: plantasMaterial,      agregarSeguidor: plantasFollow,      setEmissiveAll: plantasSetEmissive,      getEmissive: plantasGetEmissive      } = _crearMaterialPetalos('Plantas', { conBloom: true, opaco: true, bloomDefault: true })
+
+// ── Movimiento de plantas (onBeforeCompile injection) ────────────────────────
+
+const MESHES_CON_MOVIMIENTO = new Set([
+  'flor_central', 'germinadores', 'orejitas_shreck',
+  'flores', 'arbustito', 'hoja_elefante',
+])
+
+const MESHES_PLANTAS = new Set([
+  'germinadores', 'orejitas_shreck', 'flores',
+  'arbustito', 'hoja_elefante', 'musguito',
+])
+
+function _inyectarMovimientoPlanta(mat) {
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, movimientoUniforms)
+
+    let prefix = ''
+    if (!shader.vertexShader.includes('attribute vec2 uv1')) prefix += 'attribute vec2 uv1;\n'
+    if (!shader.vertexShader.includes('attribute vec2 uv2')) prefix += 'attribute vec2 uv2;\n'
+
+    shader.vertexShader = prefix + `
+      uniform float u_time;
+      uniform float u_maxDisp;
+      uniform float u_breathSpeed;
+      uniform float u_breathFreq;
+      uniform float u_wobbleSpeed;
+      uniform float u_wobbleFreq;
+      uniform float u_wobbleBlend;
+      uniform float u_swaySpeed;
+      uniform float u_swayFreq;
+      uniform float u_swayAmp;
+      uniform float u_anchorHeight;
+      ${_SNOISE_GLSL}
+    ` + shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `
+        #include <begin_vertex>
+        float offset_time = u_time + (uv2.x * 10.0);
+        float position_anchor = u_anchorHeight > 0.001
+          ? smoothstep(0.0, u_anchorHeight, position.y) : 1.0;
+
+        float wave = sin(position.x * u_breathFreq + offset_time * u_breathSpeed)
+                   * cos(position.z * u_breathFreq + offset_time * u_breathSpeed);
+        vec3 noise_pos_inflate = position * u_wobbleFreq;
+        noise_pos_inflate.y -= offset_time * u_wobbleSpeed;
+        float noise_val = _snoise(noise_pos_inflate);
+        float final_anim = mix(wave, noise_val, u_wobbleBlend);
+        vec3 inflate_displacement = normal * final_anim * u_maxDisp * uv1.x * position_anchor;
+
+        vec3 noise_pos_sway = position * u_swayFreq;
+        noise_pos_sway.y += offset_time * u_swaySpeed;
+        float nx = _snoise(noise_pos_sway);
+        float nz = _snoise(noise_pos_sway + vec3(123.45, 0.0, 0.0));
+        vec3 wind_flow = vec3(nx, 0.2 * nx, nz);
+        vec3 sway_displacement = wind_flow * u_swayAmp * uv1.y * position_anchor;
+
+        transformed += inflate_displacement + sway_displacement;
+      `,
+    )
+  }
+  mat.customProgramCacheKey = () => 'movimiento-planta'
+}
+
+// ── Panel Theatre: Movimiento ────────────────────────────────────────────────
+
+const movimientoObj = sheet.object('Movimiento', {
+  max_disp:      types.number(0.05, { range: [0, 0.5], nudgeMultiplier: 0.001 }),
+  breath_speed:  types.number(2.0,  { range: [0, 10],  nudgeMultiplier: 0.05  }),
+  breath_freq:   types.number(5.0,  { range: [0, 30],  nudgeMultiplier: 0.1   }),
+  wobble_speed:  types.number(1.5,  { range: [0, 10],  nudgeMultiplier: 0.05  }),
+  wobble_freq:   types.number(15.0, { range: [0, 50],  nudgeMultiplier: 0.2   }),
+  wobble_blend:  types.number(0.4,  { range: [0, 1],   nudgeMultiplier: 0.01  }),
+  sway_speed:    types.number(1.0,  { range: [0, 10],  nudgeMultiplier: 0.05  }),
+  sway_freq:     types.number(2.5,  { range: [0, 10],  nudgeMultiplier: 0.05  }),
+  sway_amp:      types.number(0.1,  { range: [0, 1],   nudgeMultiplier: 0.005 }),
+  anchor_height: types.number(0.3,  { range: [0, 5],   nudgeMultiplier: 0.01  }),
+})
+
+movimientoObj.onValuesChange((v) => {
+  movimientoUniforms.u_maxDisp.value      = v.max_disp
+  movimientoUniforms.u_breathSpeed.value  = v.breath_speed
+  movimientoUniforms.u_breathFreq.value   = v.breath_freq
+  movimientoUniforms.u_wobbleSpeed.value  = v.wobble_speed
+  movimientoUniforms.u_wobbleFreq.value   = v.wobble_freq
+  movimientoUniforms.u_wobbleBlend.value  = v.wobble_blend
+  movimientoUniforms.u_swaySpeed.value    = v.sway_speed
+  movimientoUniforms.u_swayFreq.value     = v.sway_freq
+  movimientoUniforms.u_swayAmp.value      = v.sway_amp
+  movimientoUniforms.u_anchorHeight.value = v.anchor_height
+})
+
+// ── Glass normal map (loaded async, applied when ready) ──────────────────────
+
+let _glassNormalTex = null
+new THREE.TextureLoader().load('/textures/glass1.jpg', (tex) => {
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  _glassNormalTex = tex
+  for (const mat of _semillaMats) {
+    mat.normalMap = tex
+    mat.normalScale.set(_glassNormalScale, _glassNormalScale)
+    mat.needsUpdate = true
+  }
+})
+
+// ── Corner SDF injector (rounded rectangle discard, no ripple) ───────────────
+
+function _inyectarCorners(mat) {
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, _cornerUniforms)
+
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <common>',
+      `#include <common>
+       attribute vec2 aSemillaUVNorm;
+       varying   vec2 vSemillaUVNorm;`,
+    ).replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+       vSemillaUVNorm = aSemillaUVNorm;`,
+    )
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <common>',
+      `#include <common>
+       uniform float uCornerRadius;
+       varying vec2 vSemillaUVNorm;`,
+    ).replace(
+      '#include <dithering_fragment>',
+      `#include <dithering_fragment>
+       {
+         vec2  _uv  = vSemillaUVNorm;
+         float _r   = uCornerRadius;
+         float _asp = length(dFdy(_uv)) / max(length(dFdx(_uv)), 1e-6);
+         vec2  _p   = (_uv - 0.5) * vec2(_asp, 1.0);
+         vec2  _q   = abs(_p) - vec2(_asp * 0.5 - _r, 0.5 - _r);
+         float _d   = length(max(_q, 0.0)) + min(max(_q.x, _q.y), 0.0) - _r;
+         if (_d > 0.0) discard;
+       }`,
+    )
+  }
+  mat.customProgramCacheKey = () => 'glass-semillas-corners-v1'
+}
+
+// ── Esquinas redondeadas — GLSL SDF ──────────────────────────────────────────
+
+const _semillaMats    = []
+const _semillaMeshes  = []   // parallel to _semillaMats — for bloom layer toggle
+const _cornerUniforms = { uCornerRadius: { value: 0.06 } }
+
+// ── Terrain — direct Theatre.js control (bypasses follow system) ──────────────
+let _terrainMesh = null
+const _terrainCtrl = sheet.object('Terrain Visibilidad', {
+  visible: types.boolean(true),
+}, { reconfigure: true })
+
+_terrainCtrl.onValuesChange((v) => {
+  if (_terrainMesh) _terrainMesh.visible = v.visible
+})
+
+const _esquinasObj = sheet.object('Semillas Esquinas', {
+  cornerRadius: types.number(0.06, { range: [0, 0.49], nudgeMultiplier: 0.005 }),
+})
+_esquinasObj.onValuesChange((v) => { _cornerUniforms.uCornerRadius.value = v.cornerRadius })
+
+// ── Panel Theatre: Glass Semillas ─────────────────────────────────────────────
+
+let _glassNormalScale = 0.08
+
+const _glassObj = sheet.object('Glass Semillas', {
+  transmission:        types.number(0.0,  { range: [0, 1],    nudgeMultiplier: 0.01 }),
+  roughness:           types.number(0.0,  { range: [0, 1],    nudgeMultiplier: 0.01 }),
+  thickness:           types.number(0.5,  { range: [0, 5],    nudgeMultiplier: 0.05 }),
+  ior:                 types.number(1.5,  { range: [1, 2.5],  nudgeMultiplier: 0.01 }),
+  normalScale:         types.number(0.08, { range: [0, 0.5],  nudgeMultiplier: 0.005 }),
+  emissiveIntensity:   types.number(1.2,  { range: [0, 5],    nudgeMultiplier: 0.05 }),
+  envMapIntensity:     types.number(1.0,  { range: [0, 5],    nudgeMultiplier: 0.05 }),
+  color:               types.rgba({ r: 1, g: 1, b: 1, a: 1 }),
+  iridescence:         types.number(1.0,  { range: [0, 1],    nudgeMultiplier: 0.01 }),
+  iridescenceIOR:      types.number(1.5,  { range: [1, 2.5],  nudgeMultiplier: 0.01 }),
+  iridescenceThickMin: types.number(100,  { range: [0, 1000], nudgeMultiplier: 5    }),
+  iridescenceThickMax: types.number(400,  { range: [0, 1000], nudgeMultiplier: 5    }),
+  bloom:               types.boolean(false),
+})
+
+_glassObj.onValuesChange((v) => {
+  _glassNormalScale = v.normalScale
+  for (const mat of _semillaMats) {
+    mat.transmission               = v.transmission
+    mat.roughness                  = v.roughness
+    mat.thickness                  = v.thickness
+    mat.ior                        = v.ior
+    mat.color.setRGB(v.color.r, v.color.g, v.color.b)
+    mat.emissiveIntensity          = v.emissiveIntensity
+    mat.envMapIntensity            = v.envMapIntensity
+    mat.iridescence                = v.iridescence
+    mat.iridescenceIOR             = v.iridescenceIOR
+    mat.iridescenceThicknessRange  = [v.iridescenceThickMin, v.iridescenceThickMax]
+    if (mat.normalMap) mat.normalScale.set(v.normalScale, v.normalScale)
+    mat.needsUpdate = true
+  }
+  for (const mesh of _semillaMeshes) {
+    if (v.bloom) mesh.layers.enable(BLOOM_LAYER)
+    else         mesh.layers.disable(BLOOM_LAYER)
+  }
+})
+
+// ── Semilla exports — click/hover detection ───────────────────────────────────
+
+export const meshesSemillasArr   = []
+export const semillaPickerMeshes = []
+
+export function initSemillaPickers(scene) {
+  const geo = new THREE.SphereGeometry(0.28, 6, 4)
+  const mat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })
+
+  const byIdx = new Map()
+  for (const mesh of meshesSemillasArr) {
+    const idx = mesh.userData.semillaIndex
+    if (idx === undefined) continue
+    const bb  = new THREE.Box3().setFromObject(mesh)
+    const c   = bb.getCenter(new THREE.Vector3())
+    if (!byIdx.has(idx)) byIdx.set(idx, { x: 0, y: 0, z: 0, n: 0 })
+    const v = byIdx.get(idx)
+    v.x += c.x; v.y += c.y; v.z += c.z; v.n++
+  }
+
+  for (const [idx, { x, y, z, n }] of byIdx) {
+    const picker = new THREE.Mesh(geo, mat)
+    picker.position.set(x / n, y / n, z / n)
+    picker.userData.semillaIndex = idx
+    scene.add(picker)
+    semillaPickerMeshes.push(picker)
+  }
+}
+
+// No-ops — kept so main.js imports don't break
+export const rippleUniforms = {}
+export function initRipple()  {}
+export function tickRipple()  {}
+
+
+// ── applyMaterials — traversal del GLB scene ──────────────────────────────────
+
+export function applyMaterials(gltfScene) {
+  const meshesSemillas = new Set()
+  gltfScene.traverse((n) => {
+    if (/^semilla[1-4]$/.test(n.name)) {
+      const idx = parseInt(n.name.replace('semilla', '')) - 1
+      n.traverse((m) => {
+        if (m.isMesh) {
+          meshesSemillas.add(m)
+          m.userData.semillaIndex = idx
+        }
+      })
+    }
+  })
+
+
+  gltfScene.traverse((node) => {
+    if (!node.isMesh) return
+    if (node.userData.skipTraverse) return
+
+    if (node.name === 'cables_ext') {
+      node.material    = raizMaterial
+      node.renderOrder = 1
+      node.layers.enable(BLOOM_LAYER)
+
+      // Shell aditivo holográfico — misma geometría compartida, sin overhead de VRAM
+      const aura = new THREE.Mesh(node.geometry, raizAuraMaterial)
+      aura.userData.skipTraverse = true
+      aura.layers.enable(BLOOM_LAYER)
+      aura.renderOrder = 2
+      node.add(aura)
+      return
+    }
+
+    if (node.name === 'FLOR_GRANDE_RAICES') {
+      const g   = node.geometry
+      const pos = g.attributes.position
+      const anchor = new THREE.Vector3()
+
+      let minY = Infinity, maxY = -Infinity
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i)
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+      const umbral = minY + Math.max((maxY - minY) * 0.05, 1e-4)
+      let n = 0
+      for (let i = 0; i < pos.count; i++) {
+        if (pos.getY(i) <= umbral) {
+          anchor.x += pos.getX(i); anchor.y += pos.getY(i); anchor.z += pos.getZ(i); n++
+        }
+      }
+      if (n > 0) anchor.multiplyScalar(1 / n)
+      else {
+        for (let i = 0; i < pos.count; i++) {
+          anchor.x += pos.getX(i); anchor.y += pos.getY(i); anchor.z += pos.getZ(i)
+        }
+        anchor.multiplyScalar(1 / pos.count)
+      }
+
+      const dist = new Float32Array(pos.count)
+      const _v   = new THREE.Vector3()
+      let maxD   = 0
+      for (let i = 0; i < pos.count; i++) {
+        _v.set(pos.getX(i), pos.getY(i), pos.getZ(i))
+        const d = _v.distanceTo(anchor)
+        dist[i] = d
+        if (d > maxD) maxD = d
+      }
+      if (maxD > 0) for (let i = 0; i < dist.length; i++) dist[i] /= maxD
+      g.setAttribute('aPulse', new THREE.BufferAttribute(dist, 1))
+
+      node.material    = raizFGMaterial
+      node.renderOrder = 1
+      node.layers.enable(BLOOM_LAYER)
+      return
+    }
+
+    const orig  = node.material
+    const nuevo = new THREE.MeshPhysicalMaterial()
+    if (orig) _transferirMaps(orig, nuevo)
+
+    const esSemilla    = meshesSemillas.has(node)
+    const esFlorGrande = node.name === 'FLOR_GRANDE'
+    const esTerrain    = node.name.toLowerCase().includes('terrain') || node.name.toLowerCase().includes('terrrain')
+    const esFlorCentral = node.name === 'flor_central'
+    const esPlanta     = MESHES_PLANTAS.has(node.name)
+
+    // Terrain: wired to Theatre.js 'Terrain' panel via terrainFollow
+    if (esTerrain) {
+      _terrainMesh = node
+      nuevo.map          = null
+      nuevo.normalMap    = null
+      nuevo.roughnessMap = null
+      nuevo.metalnessMap = null
+      nuevo.emissiveMap  = null
+      nuevo.transparent  = true
+      nuevo.depthWrite   = false
+      nuevo.side         = THREE.DoubleSide
+      delete nuevo.userData.origColor
+      delete nuevo.userData.origEmissive
+      // visibility comes from _terrainCtrl
+      node.visible = _terrainCtrl.value.visible
+    }
+
+    const proto  = esSemilla    ? semillasMaterial
+                 : esFlorGrande ? florGrandeMaterial
+                 : esTerrain    ? terrainMaterial
+                 : esFlorCentral ? florCentralMaterial
+                 : esPlanta     ? plantasMaterial
+                 : chipMaterial
+    const follow = esSemilla    ? semillasFollow
+                 : esFlorGrande ? florGrandeFollow
+                 : esTerrain    ? terrainFollow
+                 : esFlorCentral ? florCentralFollow
+                 : esPlanta     ? plantasFollow
+                 : chipFollow
+
+    // Semilla geometry is left untouched — shape and orientation come from the GLB.
+
+    nuevo.transparent = proto.transparent
+    nuevo.depthWrite  = proto.depthWrite
+    nuevo.side        = proto.side
+    nuevo.renderOrder = 1
+
+    if (MESHES_CON_MOVIMIENTO.has(node.name)) {
+      _inyectarMovimientoPlanta(nuevo)
+    }
+
+    if (esSemilla) {
+      const _idx  = node.userData.semillaIndex ?? 0
+      const _proj = CONFIG.projects[_idx] ?? CONFIG.projects[0]
+
+      // ── Glass material properties ─────────────────────────────────
+      nuevo.transmission               = 0.0
+      nuevo.roughness                  = 0.0
+      nuevo.thickness                  = 0.5
+      nuevo.ior                        = 1.5
+      nuevo.metalness                  = 0.0
+      nuevo.emissive                   = new THREE.Color(0xffffff)
+      nuevo.emissiveIntensity          = 1.2
+      nuevo.envMapIntensity            = 1.0
+      nuevo.iridescence                = 1.0
+      nuevo.iridescenceIOR             = 1.5
+      nuevo.iridescenceThicknessRange  = [100, 400]
+      const _vidTex           = _videoTexPerSemilla[_idx] ?? null
+      nuevo.map               = _vidTex ?? _texPerSemilla[_idx] ?? _texPerSemilla[0]
+      // Video glows from within — use same texture for emissive so it looks self-illuminated
+      nuevo.emissiveMap       = _vidTex ?? _emisPerSemilla[_idx] ?? _emisPerSemilla[0]
+      if (_glassNormalTex) {
+        nuevo.normalMap = _glassNormalTex
+        nuevo.normalScale.set(_glassNormalScale, _glassNormalScale)
+      }
+      nuevo.side        = THREE.FrontSide
+      nuevo.depthWrite  = true
+
+      // Polygon offset prevents Z-fighting between co-planar cards
+      nuevo.polygonOffset       = true
+      nuevo.polygonOffsetFactor = -(_idx + 1)
+      nuevo.polygonOffsetUnits  = -(_idx + 1)
+
+      // UV flip detection + normalized UV attribute for corner SDF
+      const _uvAttr  = node.geometry.attributes.uv
+      const _posAttr = node.geometry.attributes.position
+      if (_uvAttr) {
+        let _uMin = Infinity, _uMax = -Infinity, _vMin = Infinity, _vMax = -Infinity
+        let _uMinI = 0, _uMaxI = 0, _vMinI = 0, _vMaxI = 0
+        for (let _i = 0; _i < _uvAttr.count; _i++) {
+          const _u = _uvAttr.getX(_i), _v = _uvAttr.getY(_i)
+          if (_u < _uMin) { _uMin = _u; _uMinI = _i }
+          if (_u > _uMax) { _uMax = _u; _uMaxI = _i }
+          if (_v < _vMin) { _vMin = _v; _vMinI = _i }
+          if (_v > _vMax) { _vMax = _v; _vMaxI = _i }
+        }
+        let _flipX = false, _flipY = false
+        if (_posAttr) {
+          _flipX = _posAttr.getX(_uMaxI) < _posAttr.getX(_uMinI)
+          _flipY = _posAttr.getY(_vMaxI) < _posAttr.getY(_vMinI)
+        }
+        if (_proj.flipTexX) _flipX = !_flipX
+        if (_proj.flipTexY) _flipY = !_flipY
+        _drawSemillaCanvas(_idx, _proj)
+        const _uR = Math.max(_uMax - _uMin, 1e-6)
+        const _vR = Math.max(_vMax - _vMin, 1e-6)
+        const _norm = new Float32Array(_uvAttr.count * 2)
+        for (let _i = 0; _i < _uvAttr.count; _i++) {
+          _norm[_i * 2]     = (_uvAttr.getX(_i) - _uMin) / _uR
+          _norm[_i * 2 + 1] = (_uvAttr.getY(_i) - _vMin) / _vR
+        }
+        node.geometry.setAttribute('aSemillaUVNorm', new THREE.BufferAttribute(_norm, 2))
+        const _repX = _flipX ? -1 / _uR :  1 / _uR
+        const _offX = _flipX ?  _uMax / _uR : -_uMin / _uR
+        const _repY = _flipY ? -1 / _vR :  1 / _vR
+        const _offY = _flipY ?  _vMax / _vR : -_vMin / _vR
+        for (const _tex of [nuevo.map, nuevo.emissiveMap]) {
+          if (_tex) { _tex.repeat.set(_repX, _repY); _tex.offset.set(_offX, _offY) }
+        }
+        _semillaBaseOffset[_idx] = { x: _offX, y: _offY }
+        node.userData.uvCenter = new THREE.Vector2((_uMin + _uMax) / 2, (_vMin + _vMax) / 2)
+      }
+
+      _semillaMats.push(nuevo)
+      _semillaMeshes.push(node)
+      _inyectarCorners(nuevo)
+      meshesSemillasArr.push(node)
+      node.material = nuevo
+      return  // skip generic follow() — glass has its own Theatre panel
+    }
+
+    node.material = nuevo
+    follow(nuevo, node)
+  })
+}
+
+// ── updateMaterialTime — llamado en cada tick ─────────────────────────────────
+
+export function updateMaterialTime(elapsed) {
+  movimientoUniforms.u_time.value = elapsed
+  raizUniforms.uTime.value        = elapsed
+  raizFGUniforms.uTime.value      = elapsed
+}
+
+// ── growRoots / syncRootsToProgress ──────────────────────────────────────────
+
+export function syncRootsToProgress(progress, maxGrowth = 200) {
+  _rootsStarted = true
+  raizUniforms.uCrecimientoActual.value = progress * maxGrowth
+}
+
+
+export function growRoots({ duration = 4, maxGrowth = 200, ease = 'power2.inOut' } = {}) {
+  _rootsStarted = true
+  raizUniforms.uCrecimientoActual.value = 0
+  gsap.to(raizUniforms.uCrecimientoActual, {
+    value:    maxGrowth,
+    duration,
+    ease,
+  })
+}
+
+export function transitionRootsColor(duration = 4.5, ease = 'power2.inOut') {
+  if (_colorTween) { _colorTween.kill(); _colorTween = null }
+  const to    = _colorPulseFin
+  const proxy = {
+    r: raizUniforms.uColorPulse.value.r,
+    g: raizUniforms.uColorPulse.value.g,
+    b: raizUniforms.uColorPulse.value.b,
+  }
+  _colorTween = gsap.to(proxy, {
+    r: to.r, g: to.g, b: to.b,
+    duration,
+    ease,
+    onUpdate() {
+      raizUniforms.uColorPulse.value.setRGB(proxy.r, proxy.g, proxy.b)
+      raizFGUniforms.uColorPulse.value.setRGB(proxy.r, proxy.g, proxy.b)
+    },
+    onComplete() { _colorTween = null },
+  })
+}
+
+// Instant reset to the initial pulse color — call at loop restart before the circle opens.
+export function resetRootsColor() {
+  if (_colorTween) { _colorTween.kill(); _colorTween = null }
+  raizUniforms.uColorPulse.value.copy(_colorPulseInit)
+  raizFGUniforms.uColorPulse.value.copy(_colorPulseInit)
+}
+
+// ── Petal color transitions (chip / plantas / flor central) ──────────────────
+
+const _chipInit      = new THREE.Color(0x0edfff)
+const _chipFin       = new THREE.Color(0x2b32ff)
+const _plantasInit   = new THREE.Color(0xd7d7d7)
+const _plantasFin    = new THREE.Color(0x735cff)
+const _florCentInit  = new THREE.Color(0xaeaeae)
+const _florCentFin   = new THREE.Color(0xfa0f0f)
+let _petalColorTween = null
+
+export function transitionPetalColors(duration = 4.5, ease = 'power2.inOut') {
+  if (_petalColorTween) { _petalColorTween.kill(); _petalColorTween = null }
+
+  // Read actual current emissive from real mesh followers — no snap, no flash
+  const chipFrom    = chipGetEmissive()
+  const plantasFrom = plantasGetEmissive()
+  const florFrom    = florCentralGetEmissive()
+
+  const proxy = {
+    cr: chipFrom.r,    cg: chipFrom.g,    cb: chipFrom.b,
+    pr: plantasFrom.r, pg: plantasFrom.g, pb: plantasFrom.b,
+    fr: florFrom.r,    fg: florFrom.g,    fb: florFrom.b,
+  }
+
+  const _c = new THREE.Color()
+  _petalColorTween = gsap.to(proxy, {
+    cr: _chipFin.r,     cg: _chipFin.g,     cb: _chipFin.b,
+    pr: _plantasFin.r,  pg: _plantasFin.g,  pb: _plantasFin.b,
+    fr: _florCentFin.r, fg: _florCentFin.g, fb: _florCentFin.b,
+    duration, ease,
+    onUpdate() {
+      chipSetEmissive(_c.setRGB(proxy.cr, proxy.cg, proxy.cb))
+      plantasSetEmissive(_c.setRGB(proxy.pr, proxy.pg, proxy.pb))
+      florCentralSetEmissive(_c.setRGB(proxy.fr, proxy.fg, proxy.fb))
+    },
+    onComplete() { _petalColorTween = null },
+  })
+}
+
+export function resetPetalColors() {
+  if (_petalColorTween) { _petalColorTween.kill(); _petalColorTween = null }
+  chipSetEmissive(_chipInit)
+  plantasSetEmissive(_plantasInit)
+  florCentralSetEmissive(_florCentInit)
+}
+
+export function transitionRootsColorBack(duration = 1.2, ease = 'power2.inOut') {
+  if (_colorTween) { _colorTween.kill(); _colorTween = null }
+  const from  = raizUniforms.uColorPulse.value
+  const proxy = { r: from.r, g: from.g, b: from.b }
+  _colorTween = gsap.to(proxy, {
+    r: _colorPulseInit.r, g: _colorPulseInit.g, b: _colorPulseInit.b,
+    duration, ease,
+    onUpdate() {
+      raizUniforms.uColorPulse.value.setRGB(proxy.r, proxy.g, proxy.b)
+      raizFGUniforms.uColorPulse.value.setRGB(proxy.r, proxy.g, proxy.b)
+    },
+    onComplete() { _colorTween = null },
+  })
+}
+
+export function transitionPetalColorsBack(duration = 1.2, ease = 'power2.inOut') {
+  if (_petalColorTween) { _petalColorTween.kill(); _petalColorTween = null }
+  const chipFrom    = chipGetEmissive()
+  const plantasFrom = plantasGetEmissive()
+  const florFrom    = florCentralGetEmissive()
+  const proxy = {
+    cr: chipFrom.r,    cg: chipFrom.g,    cb: chipFrom.b,
+    pr: plantasFrom.r, pg: plantasFrom.g, pb: plantasFrom.b,
+    fr: florFrom.r,    fg: florFrom.g,    fb: florFrom.b,
+  }
+  const _c = new THREE.Color()
+  _petalColorTween = gsap.to(proxy, {
+    cr: _chipInit.r,     cg: _chipInit.g,     cb: _chipInit.b,
+    pr: _plantasInit.r,  pg: _plantasInit.g,  pb: _plantasInit.b,
+    fr: _florCentInit.r, fg: _florCentInit.g, fb: _florCentInit.b,
+    duration, ease,
+    onUpdate() {
+      chipSetEmissive(_c.setRGB(proxy.cr, proxy.cg, proxy.cb))
+      plantasSetEmissive(_c.setRGB(proxy.pr, proxy.pg, proxy.pb))
+      florCentralSetEmissive(_c.setRGB(proxy.fr, proxy.fg, proxy.fb))
+    },
+    onComplete() { _petalColorTween = null },
+  })
+}
+
+// ── Semilla hover effect ──────────────────────────────────────────────────────
+
+const _semillaBaseOffset  = []  // [idx] = { x, y } — base UV offset after applyMaterials
+const _semillaHoverTweens = []  // [idx] = active GSAP tween (or null)
+
+export function semillaHoverEnter(idx) {
+  if (_semillaHoverTweens[idx]) _semillaHoverTweens[idx].kill()
+  const mats = _semillaMats.filter((_, i) => _semillaMeshes[i]?.userData.semillaIndex === idx)
+  if (!mats.length) return
+  const proxy = { emissive: mats[0].emissiveIntensity, thickMax: mats[0].iridescenceThicknessRange[1] }
+  _semillaHoverTweens[idx] = gsap.to(proxy, {
+    emissive: 2.8, thickMax: 800,
+    duration: 0.35, ease: 'power2.out',
+    onUpdate() {
+      for (const m of mats) {
+        m.emissiveIntensity = proxy.emissive
+        m.iridescenceThicknessRange = [m.iridescenceThicknessRange[0], proxy.thickMax]
+      }
+    },
+    onComplete() { _semillaHoverTweens[idx] = null },
+  })
+}
+
+export function semillaHoverLeave(idx) {
+  if (_semillaHoverTweens[idx]) _semillaHoverTweens[idx].kill()
+  const mats = _semillaMats.filter((_, i) => _semillaMeshes[i]?.userData.semillaIndex === idx)
+  if (!mats.length) return
+  // Snap UV tilt back to base immediately
+  const base = _semillaBaseOffset[idx]
+  if (base) {
+    const vidTex = _videoTexPerSemilla[idx]
+    if (vidTex) {
+      vidTex.offset.set(base.x, base.y)
+    } else {
+      if (_texPerSemilla[idx])  _texPerSemilla[idx].offset.set(base.x, base.y)
+      if (_emisPerSemilla[idx]) _emisPerSemilla[idx].offset.set(base.x, base.y)
+    }
+  }
+  const proxy = { emissive: mats[0].emissiveIntensity, thickMax: mats[0].iridescenceThicknessRange[1] }
+  _semillaHoverTweens[idx] = gsap.to(proxy, {
+    emissive: 1.2, thickMax: 400,
+    duration: 0.55, ease: 'power2.inOut',
+    onUpdate() {
+      for (const m of mats) {
+        m.emissiveIntensity = proxy.emissive
+        m.iridescenceThicknessRange = [m.iridescenceThicknessRange[0], proxy.thickMax]
+      }
+    },
+    onComplete() { _semillaHoverTweens[idx] = null },
+  })
+}
+
+let _semillaFadeTween = null
+
+export function setSemillasVisible(visible, duration = 0.7) {
+  if (_semillaFadeTween) { _semillaFadeTween.kill(); _semillaFadeTween = null }
+
+  // Collect actual material instances directly from the meshes
+  const _allMats = []
+  _semillaMeshes.forEach(m => {
+    if (!m) return
+    const arr = Array.isArray(m.material) ? m.material : [m.material]
+    arr.forEach(mt => { if (mt && !_allMats.includes(mt)) _allMats.push(mt) })
+  })
+
+  // Enable transparency on all mats before tweening (needsUpdate required for this change)
+  _allMats.forEach(mt => {
+    if (!mt.transparent) { mt.transparent = true; mt.needsUpdate = true }
+  })
+
+  if (visible) {
+    _semillaMeshes.forEach(m => { if (m) m.visible = true })
+    semillaPickerMeshes.forEach(m => { if (m) m.visible = true })
+  }
+
+  const startOpacity = _allMats[0]?.opacity ?? (visible ? 0 : 1)
+  const proxy = { v: startOpacity }
+
+  _semillaFadeTween = gsap.to(proxy, {
+    v:        visible ? 1 : 0,
+    duration,
+    ease:     visible ? 'power2.out' : 'power2.in',
+    onUpdate() {
+      _allMats.forEach(mt => { mt.opacity = proxy.v })
+    },
+    onComplete() {
+      if (!visible) {
+        _semillaMeshes.forEach(m => { if (m) m.visible = false })
+        semillaPickerMeshes.forEach(m => { if (m) m.visible = false })
+        _allMats.forEach(mt => { mt.opacity = 0 })
+      } else {
+        _allMats.forEach(mt => { mt.transparent = false; mt.needsUpdate = true; mt.opacity = 1 })
+      }
+      _semillaFadeTween = null
+    },
+  })
+}
+
+export function semillaSetTilt(idx, nx, ny) {
+  const base = _semillaBaseOffset[idx]
+  if (!base) return
+  const dx = nx * 0.025
+  const dy = ny * 0.025
+  const vidTex = _videoTexPerSemilla[idx]
+  if (vidTex) {
+    vidTex.offset.set(base.x + dx, base.y + dy)
+  } else {
+    if (_texPerSemilla[idx])  _texPerSemilla[idx].offset.set(base.x + dx, base.y + dy)
+    if (_emisPerSemilla[idx]) _emisPerSemilla[idx].offset.set(base.x + dx, base.y + dy)
+  }
+}

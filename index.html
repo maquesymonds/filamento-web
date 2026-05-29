@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Filamento — Design Studio</title>
+  <link rel="icon" type="image/png" href="/images/LogoPng.webp" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/style.css" />
+</head>
+<body class="use-radial-nav">
+
+  <!-- Intro loader veil -->
+  <div id="intro-veil">
+    <div id="intro-wordmark">FILAMENTO</div>
+  </div>
+
+  <!-- Canvas Three.js -->
+  <canvas id="filamento-canvas"></canvas>
+
+  <!-- Veil de transición (fade to black entre estados) -->
+  <div id="scene-veil"></div>
+
+  <!-- ─── HERO OVERLAY ────────────────────────────────────────── -->
+  <!-- El overlay queda visible después del Start — el brand se mantiene arriba -->
+  <div id="hero-overlay">
+    <div id="hero-top">
+      <div id="hero-brand">
+        <h1 class="brand-name">FILAMENTO</h1>
+        <p class="hero-tagline">Digital experiences that make<br class="mobile-br"> brands stand out.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Brand icon — appears top-left after Start animation -->
+  <div id="brand-icon">
+    <img class="logo-main" src="/images/LogoPng.webp" alt="Filamento" />
+  </div>
+
+
+  <!-- ─── Sound toggle — standalone, always top-right ────────── -->
+  <!-- Moved outside #nav-pill so it's visible in both nav modes  -->
+  <button class="sound-toggle" id="sound-toggle" aria-label="Toggle sound" type="button">
+    <canvas class="sound-wave-icon"></canvas>
+  </button>
+
+  <!-- ─── NAV PILL (top right) — ORIGINAL NAV ──────────────── -->
+  <div id="nav-pill" class="shiny-pill">
+    <button id="nav-pill-menu-btn" type="button">Menu</button>
+    <nav id="nav-pill-dropdown">
+      <button class="nav-pill-item" data-section="studio">Studio</button>
+      <button class="nav-pill-item" data-section="process">Approach</button>
+      <button class="nav-pill-item" data-section="work">Work</button>
+      <button class="nav-pill-item" data-section="contact">Contact</button>
+    </nav>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       RADIAL NAV EXPERIMENT
+       Toggle: add class "use-radial-nav" to <body>
+       Original #nav-pill is untouched — hidden via CSS only.
+       ════════════════════════════════════════════════════════════ -->
+  <nav id="radial-nav" aria-label="Section navigation">
+
+    <!-- Curved arc guide line (SVG) — purely decorative -->
+    <svg class="rn-arc-svg" aria-hidden="true" viewBox="0 0 60 290" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="rn-arc-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="rgba(77,217,192,0)"/>
+          <stop offset="25%"  stop-color="rgba(77,217,192,0.22)"/>
+          <stop offset="75%"  stop-color="rgba(77,217,192,0.22)"/>
+          <stop offset="100%" stop-color="rgba(77,217,192,0)"/>
+        </linearGradient>
+      </defs>
+      <!-- Bigger bow: control point further left, taller to match new gap -->
+      <path d="M 46,0 Q 4,145 46,290" stroke="url(#rn-arc-grad)" stroke-width="0.8" fill="none"/>
+    </svg>
+
+    <!-- Section items — --arc-offset shifts each item along the arc curve -->
+    <!-- Bigger arc offsets (0 / -24px) for a more pronounced curve -->
+    <button class="rn-item" data-section="studio"  style="--arc-offset: 0px">
+      <span class="rn-label">Studio</span>
+      <span class="rn-dot"></span>
+    </button>
+    <button class="rn-item" data-section="process" style="--arc-offset: -38px">
+      <span class="rn-label">Approach</span>
+      <span class="rn-dot"></span>
+    </button>
+    <button class="rn-item" data-section="work"    style="--arc-offset: -38px">
+      <span class="rn-label">Work</span>
+      <span class="rn-dot"></span>
+    </button>
+    <button class="rn-item" data-section="contact" style="--arc-offset: 0px">
+      <span class="rn-label">Contact</span>
+      <span class="rn-dot"></span>
+    </button>
+
+  </nav>
+
+  <!-- ─── Audio mixer ──────────────────────────────────────────── -->
+  <div id="audio-mixer">
+    <div class="mixer-row">
+      <span class="mixer-label">Ambient</span>
+      <input class="mixer-slider" id="slider-ambient" type="range" min="0" max="1" step="0.01" value="0.35" />
+    </div>
+    <div class="mixer-row">
+      <span class="mixer-label">Jungle</span>
+      <input class="mixer-slider" id="slider-jungle" type="range" min="0" max="1" step="0.01" value="0.6" />
+    </div>
+    <div class="mixer-row mixer-row--save">
+      <button id="mixer-save">Save</button>
+    </div>
+  </div>
+
+  <!-- ─── Hamburger menu (mobile only) ───────────────────────── -->
+  <button id="hamburger-btn" aria-label="Toggle menu" type="button">
+    <span></span><span></span><span></span>
+  </button>
+  <nav id="hamburger-menu" aria-label="Section navigation">
+    <button class="hm-item" data-section="studio">Studio</button>
+    <button class="hm-item" data-section="process">Approach</button>
+    <button class="hm-item" data-section="work">Work</button>
+    <button class="hm-item" data-section="contact">Contact</button>
+  </nav>
+
+  <!-- Semilla hover cursor -->
+  <div id="semilla-cursor" class="project-media-cursor">
+    <span class="cursor-label"></span>
+    <span class="cursor-dot"></span>
+  </div>
+
+  <!-- Botón start experience -->
+  <button id="begin-btn" class="shiny-pill"><span>Start</span></button>
+
+  <!-- Botón "Begin the journey" (aparece después del intro) -->
+  <button id="scroll-hint" class="shiny-pill" type="button"><span>Begin</span></button>
+  <div id="scroll-discover">← → arrows or scroll</div>
+
+  <!-- ─── Frame counter ──────────────────────────────────────── -->
+  <div id="frame-counter" aria-hidden="true">
+    <span id="frame-current">000</span>
+    <span class="frame-sep">/</span>
+    <span id="frame-total">000</span>
+  </div>
+
+  <!-- ─── SCROLL TEXT OVERLAYS (inyectados por scroll.js) ──────── -->
+  <div id="scroll-text-layer" aria-live="polite"></div>
+
+  <!-- ─── POLLEN TEXT (Contact section floating letters) ──────── -->
+  <div id="pollen-text" class="pollen-text" aria-hidden="true"></div>
+
+  <!-- ─── SCROLL LAYOUT ───────────────────────────────────────── -->
+  <!-- Hero spacer: crea espacio antes de que arranque la animación -->
+  <div id="hero-spacer"></div>
+
+  <!-- El scroll stage: su progreso de scroll maneja el tiempo de animación -->
+  <div id="scroll-stage"></div>
+
+  <!-- ─── PROJECT PAGE (full-screen, below nav pill) ──────── -->
+  <div id="project-panel" style="display:none">
+
+    <!-- WebGPU jellyfish scene — behind wave canvas -->
+    <canvas id="project-jelly-canvas"></canvas>
+
+    <!-- WebGL atmospheric background -->
+    <canvas id="project-bg-canvas"></canvas>
+
+    <!-- top hint -->
+    <p class="project-page-hint">Scroll to close</p>
+    <button class="project-page-close" id="project-panel-close" aria-label="Go back">
+      <svg width="22" height="16" viewBox="0 0 22 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M21 8H1M1 8L8 1M1 8L8 15" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
+    <!-- content row: text left, image right -->
+    <div class="project-page-content">
+
+      <!-- info: left column -->
+      <div class="project-page-info">
+        <div class="project-page-meta">
+          <span id="project-panel-company"></span>
+          <span class="project-page-sep">/</span>
+          <span id="project-panel-date"></span>
+        </div>
+        <div class="project-page-category" id="project-panel-category"></div>
+
+        <h2 class="project-page-title" id="project-panel-title"></h2>
+
+        <p class="project-page-desc" id="project-panel-desc"></p>
+
+        <div class="project-page-links" id="project-panel-links">
+          <a id="project-panel-case" class="project-page-link" target="_blank" rel="noopener">Case Study &#8599;</a>
+          <a id="project-panel-web"  class="project-page-link" target="_blank" rel="noopener">Project Link &#8599;</a>
+        </div>
+      </div>
+
+      <!-- image / video: right column -->
+      <div class="project-page-image-wrap" id="project-panel-image-wrap">
+        <img id="project-panel-image" class="project-page-image" alt="" />
+        <video id="project-panel-video" class="project-page-image" autoplay loop muted playsinline style="display:none">
+          <source id="project-panel-video-webm" type="video/webm">
+          <source id="project-panel-video-mp4"  type="video/mp4">
+        </video>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- ─── Dev timeline scrubber ──────────────────────────────── -->
+  <div id="dev-timeline">
+    <div id="dev-timeline-track">
+      <div id="dev-timeline-fill"></div>
+      <div id="dev-timeline-handle"></div>
+    </div>
+    <div id="dev-timeline-frame"></div>
+  </div>
+
+  <script type="module" src="/src/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,1598 @@
+/* ─── Tokens ─────────────────────────────────────────────────── */
+:root { --color-text: #ffffff; }
+
+/* ─── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  font-family: 'Chakra Petch', sans-serif;
+}
+
+/* ─── Intro loader ───────────────────────────────────────────── */
+#intro-veil {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+#intro-wordmark {
+  position: fixed;
+  opacity: 0;
+  font-family: 'Chakra Petch', sans-serif;
+  font-weight: 500;
+  font-size: clamp(28px, 3.8vw, 52px);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: #fff;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ─── Canvas ─────────────────────────────────────────────────── */
+#filamento-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* ─── Black mask (Theatre.js animable) ───────────────────────── */
+
+/* ─── Scene veil ─────────────────────────────────────────────── */
+#scene-veil {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+
+/* ─── Hero overlay ───────────────────────────────────────────── */
+#hero-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 40px 48px;
+}
+
+#hero-top {
+  display: flex;
+  align-items: flex-start;
+}
+
+#hero-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  overflow: hidden;
+}
+
+.brand-name {
+  font-size: clamp(52px, 7vw, 90px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  display: block;
+  transform-origin: top left;
+  will-change: transform;
+}
+
+/* Logo state: small, top-left — animated via x/y/scale transforms only */
+.brand-name.is-logo {
+  position: fixed;
+  top: 32px;
+  left: 48px;
+  font-size: 13px;
+  letter-spacing: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 200;
+  opacity: 0.9;
+}
+
+.brand-name.is-logo:hover { opacity: 0.5; }
+
+/* Icon wrapper — swaps in at the corner after Start animation */
+#brand-icon {
+  position: fixed;
+  top: 32px;
+  left: 48px;
+  height: 68px;
+  width: fit-content;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 200;
+  cursor: pointer;
+}
+
+#brand-icon.is-visible {
+  opacity: 0.9;
+  pointer-events: auto;
+}
+
+/* Main logo image */
+.logo-main {
+  display: block;
+  height: 68px;
+  width: auto;
+  position: relative;
+  z-index: 0;
+  filter:
+    drop-shadow(0 0 8px rgba(155, 255, 248, 0.62))
+    drop-shadow(0 0 22px rgba(100, 235, 225, 0.32))
+    drop-shadow(0 0 44px rgba(70, 195, 188, 0.16));
+}
+
+#brand-icon:hover .logo-main {
+  animation: _lgMain 3s steps(1) infinite;
+}
+
+/* Glitch ghost layers — same PNG duplicated as ::before / ::after */
+#brand-icon::before,
+#brand-icon::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-image: url('/images/LogoPng.webp');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: screen;
+}
+
+/* Layer 1: very bright, nearly white */
+#brand-icon::before { filter: brightness(4)   saturate(0.12); }
+/* Layer 2: bright with faint teal cast */
+#brand-icon::after  { filter: brightness(3)   saturate(0.22) hue-rotate(-15deg); }
+
+#brand-icon:hover::before { animation: _lgLayer1 3s steps(1)        infinite; }
+#brand-icon:hover::after  { animation: _lgLayer2 3s steps(1) 0.06s  infinite; }
+
+/* ── Logo glitch keyframes ─────────────────────────────────────── */
+/* First burst starts at 0% — fires the instant hover begins.      */
+/* Second burst at ~50%. Cycle: 3 s.                               */
+
+@keyframes _lgMain {
+  0%  { transform: translate(-2px, 0); }
+  2%  { transform: translate( 1px, 0); }
+  4%  { transform: translate(-1px, 0); }
+  6%  { transform: translate( 2px, 0); }
+  8%,48%,58%,100% { transform: translate(0, 0); }
+  50% { transform: translate( 1px, 0); }
+  52% { transform: translate(-2px, 0); }
+  54% { transform: translate( 1px, 0); }
+  56% { transform: translate( 0,   0); }
+}
+
+/* ::before — bright slices right, fires at 0% */
+@keyframes _lgLayer1 {
+  0%  { opacity:.65; transform:translate(3px,0); clip-path:inset(15% 0 58% 0); }
+  2%  { opacity:.50; transform:translate(2px,0); clip-path:inset(52% 0 22% 0); }
+  4%  { opacity:.70; transform:translate(3px,0); clip-path:inset(30% 0 44% 0); }
+  6%  { opacity:.40; transform:translate(2px,0); clip-path:inset(62% 0 18% 0); }
+  8%,48%,58%,100% { opacity:0; transform:translate(0,0); clip-path:inset(0 0 100% 0); }
+  50% { opacity:.55; transform:translate(3px,0); clip-path:inset(22% 0 50% 0); }
+  52% { opacity:.45; transform:translate(2px,0); clip-path:inset(48% 0 30% 0); }
+  54% { opacity:.60; transform:translate(3px,0); clip-path:inset(10% 0 70% 0); }
+  56% { opacity: 0;  transform:translate(0,  0); clip-path:inset(0 0 100% 0); }
+}
+
+/* ::after — subtler slices left, slight offset from ::before */
+@keyframes _lgLayer2 {
+  0%,9%,49%,59%,100% { opacity:0; transform:translate(0,0); clip-path:inset(0 0 100% 0); }
+  2%  { opacity:.30; transform:translate(-3px,0); clip-path:inset(20% 0 52% 0); }
+  4%  { opacity:.22; transform:translate(-2px,0); clip-path:inset(58% 0 24% 0); }
+  6%  { opacity:.32; transform:translate(-3px,0); clip-path:inset(35% 0 40% 0); }
+  8%  { opacity:.18; transform:translate(-2px,0); clip-path:inset(68% 0 12% 0); }
+  51% { opacity:.25; transform:translate(-3px,0); clip-path:inset(28% 0 45% 0); }
+  53% { opacity:.28; transform:translate(-2px,0); clip-path:inset(55% 0 28% 0); }
+  55% { opacity:.20; transform:translate(-3px,0); clip-path:inset(15% 0 62% 0); }
+  57% { opacity: 0;  transform:translate(0,   0); clip-path:inset(0 0 100% 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #brand-icon:hover .logo-main,
+  #brand-icon:hover::before,
+  #brand-icon:hover::after { animation: none; }
+  #brand-icon::before,
+  #brand-icon::after        { display: none; }
+}
+
+/* Small centered wordmark — shown after Start is pressed */
+#brand-wordmark {
+  position: fixed;
+  top: 51px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 200;
+  white-space: nowrap;
+}
+
+.hero-tagline {
+  font-size: 16px;
+  font-weight: 300;
+  letter-spacing: 0;
+  color: #fff;
+  opacity: 0;
+}
+
+/* ─── Sound toggle — standalone, always top-right ───────────── */
+/* Moved out of #nav-pill; visible in both nav modes             */
+#sound-toggle {
+  position: fixed;
+  top: 40px;
+  right: 32px;
+  z-index: 102;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+}
+
+/* ─── Nav pill — ORIGINAL NAV ────────────────────────────────── */
+#nav-pill {
+  position: fixed;
+  top: 40px;
+  right: 96px; /* shifted left to not overlap standalone sound toggle */
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 11px 20px 11px 24px;
+}
+
+/* In radial mode the pill is hidden; sound toggle repositions alone */
+body.use-radial-nav #sound-toggle { right: 32px; }
+
+#nav-pill-menu-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+
+#nav-pill-menu-btn:hover { color: #fff; }
+
+/* Dropdown */
+#nav-pill-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #050a0d;
+  border: 1px solid rgba(77, 217, 192, 0.40);
+  border-radius: 14px;
+  padding: 8px 4px;
+  min-width: 120px;
+  box-shadow: 0 0 16px rgba(77, 217, 192, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#nav-pill.open #nav-pill-dropdown {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.nav-pill-item {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 8px 16px;
+  text-align: left;
+  border-radius: 10px;
+  transition: color 0.2s, background 0.2s;
+  white-space: nowrap;
+}
+
+.nav-pill-item:hover {
+  color: #fff;
+  background: rgba(77, 217, 192, 0.08);
+}
+
+.nav-pill-item.active { color: #4dd9c0; }
+
+/* ─── Sound toggle (inside pill) ────────────────────────────── */
+.sound-toggle {
+  height: 24px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.sound-wave-icon {
+  display: block;
+  width: 44px;
+  height: 22px;
+  pointer-events: none;  /* let touches reach the parent <button> */
+}
+
+/* ─── Begin button ───────────────────────────────────────────── */
+#begin-btn {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 12px 32px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+#begin-btn:disabled { pointer-events: none; }
+
+/* ─── Begin the journey button ───────────────────────────────── */
+#scroll-hint {
+  position: fixed;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 12px 32px;
+  cursor: pointer;
+}
+
+#scroll-discover {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 15;
+  opacity: 0;
+  pointer-events: none;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #ffffff;
+  white-space: nowrap;
+  text-shadow:
+    0 0 8px rgba(77, 217, 192, 0.9),
+    0 0 18px rgba(77, 217, 192, 0.55),
+    0 0 38px rgba(77, 217, 192, 0.25);
+}
+
+/* ─── Scroll layout (oculto — el viaje es auto-play sin scroll) ─ */
+#hero-spacer,
+#scroll-stage {
+  display: none;
+}
+
+/* ─── Scroll text overlays ───────────────────────────────────── */
+#scroll-text-layer {
+  position: fixed;
+  bottom: 18px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Absolute so all blocks overlap — only the visible one shows */
+.scroll-text-block {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  width: min(980px, calc(100vw - 320px));
+  padding: 28px 36px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 48px;
+}
+
+.scroll-text-heading {
+  flex: 0 0 42%;
+  font-size: clamp(14px, 2.2vw, 30px);
+  text-transform: uppercase;
+  font-weight: 200;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  margin-bottom: 0;
+  color: #fff;
+  align-self: center;
+}
+
+.scroll-text-lines {
+  flex: 1;
+  min-width: 0;
+}
+
+.scroll-text-line {
+  font-size: clamp(11px, 1.1vw, 14px);
+  font-weight: 200;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  color: rgba(255,255,255,0.82);
+  margin-bottom: 1em;
+}
+
+.scroll-text-line:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Contact social links ─────────────────────────────────────── */
+.scroll-contact-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  pointer-events: auto;
+}
+
+.scroll-contact-link {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.22s ease, background 0.22s ease;
+}
+
+.scroll-contact-link:hover {
+  border-color: rgba(77, 217, 192, 0.45);
+  background: rgba(77, 217, 192, 0.07);
+}
+
+.scl-platform {
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+  line-height: 1;
+}
+
+.scl-handle {
+  font-size: clamp(10px, 0.9vw, 13px);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1;
+}
+
+/* ─── Contact bracket items ────────────────────────────────────── */
+.scroll-text-block--contact {
+  justify-content: center;
+  align-items: center;
+}
+
+.contact-items {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: auto;
+  padding: 0 8px;
+}
+
+.contact-item {
+  font-size: clamp(11px, 1.05vw, 15px);
+  font-weight: 300;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow:
+    0 0 10px rgba(77, 217, 192, 0.65),
+    0 0 24px rgba(77, 217, 192, 0.28),
+    0 0 48px rgba(77, 217, 192, 0.10);
+  text-decoration: none;
+}
+
+/* ─── Go back / Continue buttons (above text blocks) ──────────── */
+.go-back-btn,
+.continue-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 4px 0;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.go-back-btn  { right: calc(100% + 36px); left: auto; }
+.continue-btn { left: calc(100% + 36px);  right: auto; }
+
+.go-back-btn:hover,
+.continue-btn:hover {
+  color: #fff;
+}
+
+.go-back-btn svg,
+.continue-btn svg {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.go-back-btn:hover svg  { transform: translateX(-3px); }
+.continue-btn:hover svg { transform: translateX(3px); }
+
+/* ─── Audio mixer ────────────────────────────────────────────── */
+#audio-mixer {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mixer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mixer-label {
+  font-size: 9px;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  width: 44px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.mixer-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 1px;
+  background: rgba(255,255,255,0.2);
+  outline: none;
+  border: none;
+  cursor: pointer;
+}
+
+.mixer-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+}
+
+.mixer-slider::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.mixer-row--save {
+  justify-content: flex-end;
+}
+
+#mixer-save {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.35);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+#mixer-save:hover  { color: rgba(255,255,255,0.9); }
+#mixer-save.saved  { color: rgba(255,255,255,0.9); }
+
+/* ─── Frame counter ──────────────────────────────────────────── */
+#frame-counter {
+  display: none;
+}
+
+.frame-sep {
+  color: rgba(255, 255, 255, 0.1);
+  letter-spacing: 0;
+}
+
+/* ─── Dev timeline scrubber ─────────────────────────────────── */
+#dev-timeline {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 48px));
+  z-index: 9000;
+  user-select: none;
+}
+
+#dev-timeline-track {
+  position: relative;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+#dev-timeline-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: width 0.04s linear;
+}
+
+#dev-timeline-handle {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: left 0.04s linear;
+}
+
+#dev-timeline-frame {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.3);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.dev-timeline-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 1px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+.dev-timeline-marker span {
+  position: absolute;
+  bottom: 13px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ─── Project page (full-screen, z below nav pill) ──────────── */
+#project-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000;   /* fallback; jellyfish canvas layers on top */
+  display: none;     /* set to flex by JS */
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 0 0 56px 56px;
+  overflow: hidden;
+}
+
+/* WebGPU jellyfish — screen blend above wave canvas, black bg becomes invisible */
+#project-jelly-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+/* WebGL wave atmosphere — middle layer, alpha:true lets jellyfish bleed through */
+#project-bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  display: block;
+  pointer-events: none;
+}
+
+/* Content row: text left bottom-aligned, image right */
+.project-page-content {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 48px;
+  width: min(1280px, 92vw);
+  max-height: 80vh;
+}
+
+/* Image — fixed-centered on viewport, independent of any flex parent */
+.project-page-image-wrap {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 65vw;
+  max-width: 900px;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 4;
+}
+
+.project-page-image-wrap.has-link {
+  cursor: none;
+}
+
+/* ─── Media cursor (hover over project video/image) ──────── */
+.project-media-cursor {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0;
+  /* bottom of element (= dot center) sits right at the cursor point */
+  transform: translate(-50%, calc(-100% + 2.5px));
+  transition: opacity 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  user-select: none;
+}
+
+.project-media-cursor.visible {
+  opacity: 1;
+}
+
+.project-media-cursor .cursor-label {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.project-media-cursor .cursor-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  flex-shrink: 0;
+}
+
+.project-page-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* "Scroll to close" hint — just above the cover image top edge.
+   Image: width 55vw, aspect 16/9 → height = 55vw*(9/16), top edge = 50vh - height/2 */
+.project-page-hint {
+  position: absolute;
+  top: calc(50vh - 62vw * 9 / 32 - 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.project-page-close {
+  position: fixed;
+  top: 40px;
+  left: 56px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 8px 8px 0;
+  color: #ffffff;
+  z-index: 55;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: scale(1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.project-page-close:hover {
+  transform: scale(1.25);
+}
+
+/* Text info — left column, bottom-aligned */
+.project-page-info {
+  flex: 0 0 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 2;
+}
+
+.project-page-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.project-page-sep {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.project-page-category {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.project-page-title {
+  font-size: clamp(22px, 3.5vw, 38px);
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.project-page-desc {
+  font-size: 13.5px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.72);
+  hyphens: none;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.project-page-links {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.project-page-link {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: color 0.2s, text-decoration-color 0.2s;
+}
+
+.project-page-link:hover {
+  color: #fff;
+  text-decoration-color: rgba(77, 217, 192, 0.7);
+}
+
+.project-page-close {
+  background: none;
+  border: none;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  padding: 0;
+  margin-top: 4px;
+  transition: color 0.2s;
+  text-align: left;
+}
+
+.project-page-close:hover { color: #fff; }
+
+/* ─── Shiny pill effect ──────────────────────────────────────── */
+
+@property --gradient-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@property --gradient-angle-offset {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@property --gradient-percent {
+  syntax: "<percentage>";
+  initial-value: 5%;
+  inherits: false;
+}
+@property --gradient-shine {
+  syntax: "<color>";
+  initial-value: white;
+  inherits: false;
+}
+
+@keyframes gradient-angle {
+  to { --gradient-angle: 360deg; }
+}
+@keyframes pill-shimmer {
+  to { rotate: 360deg; }
+}
+@keyframes pill-breathe {
+  from, to { scale: 1; }
+  50%       { scale: 1.2; }
+}
+
+/* Applied to #nav-pill, #begin-btn, #scroll-hint */
+.shiny-pill {
+  --shiny-bg:               #050a0d;
+  --shiny-bg-subtle:        #0d1f1a;
+  --shiny-highlight:        #4dd9c0;
+  --shiny-highlight-subtle: #8aeedf;
+  --pill-duration:          8s;
+  --pill-animation:         gradient-angle linear infinite;
+  --pill-transition:        800ms cubic-bezier(0.25, 1, 0.5, 1);
+
+  isolation: isolate;
+  position: relative;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: 'Chakra Petch', sans-serif;
+
+  background:
+    linear-gradient(var(--shiny-bg), var(--shiny-bg)) padding-box,
+    conic-gradient(
+      from calc(var(--gradient-angle) - var(--gradient-angle-offset)),
+      transparent,
+      var(--shiny-highlight)        var(--gradient-percent),
+      var(--gradient-shine)         calc(var(--gradient-percent) * 2),
+      var(--shiny-highlight)        calc(var(--gradient-percent) * 3),
+      transparent                   calc(var(--gradient-percent) * 4)
+    ) border-box;
+  box-shadow: inset 0 0 0 1px var(--shiny-bg-subtle);
+
+  transition:
+    --gradient-angle-offset var(--pill-transition),
+    --gradient-percent      var(--pill-transition),
+    --gradient-shine        var(--pill-transition),
+    color 0.2s;
+}
+
+/* Dots pattern */
+.shiny-pill::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  translate: -50% -50%;
+  z-index: -1;
+  --size: calc(100% - 4px);
+  width: var(--size);
+  height: var(--size);
+  background:
+    radial-gradient(circle at 2px 2px, white calc(2px / 4), transparent 0)
+    padding-box;
+  background-size: 4px 4px;
+  background-repeat: space;
+  mask-image: conic-gradient(
+    from calc(var(--gradient-angle) + 45deg),
+    black, transparent 10% 90%, black
+  );
+  border-radius: inherit;
+  opacity: 0.3;
+  animation: var(--pill-animation) var(--pill-duration),
+             var(--pill-animation) calc(var(--pill-duration) / 0.4) reverse paused;
+  animation-composition: add;
+}
+
+/* Inner shimmer */
+.shiny-pill::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  translate: -50% -50%;
+  z-index: -1;
+  width: 100%;
+  aspect-ratio: 1;
+  background: linear-gradient(-50deg, transparent, var(--shiny-highlight), transparent);
+  mask-image: radial-gradient(circle at bottom, transparent 40%, black);
+  opacity: 0.5;
+  animation: pill-shimmer linear infinite var(--pill-duration),
+             pill-shimmer calc(var(--pill-duration) / 0.4) reverse paused;
+  animation-composition: add;
+}
+
+/* Span glow */
+.shiny-pill span::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  translate: -50% -50%;
+  z-index: -1;
+  --size: calc(100% + 1rem);
+  width: var(--size);
+  height: var(--size);
+  box-shadow: inset 0 -1ex 2rem 4px var(--shiny-highlight);
+  opacity: 0;
+  transition: opacity var(--pill-transition);
+  animation: calc(var(--pill-duration) * 1.5) pill-breathe linear infinite;
+}
+
+/* Border rotation — always on */
+.shiny-pill {
+  animation: var(--pill-animation) var(--pill-duration),
+             var(--pill-animation) calc(var(--pill-duration) / 0.4) reverse paused;
+  animation-composition: add;
+}
+
+/* Hover: activate */
+.shiny-pill:is(:hover, :focus-visible) {
+  --gradient-percent:       20%;
+  --gradient-angle-offset:  95deg;
+  --gradient-shine:         var(--shiny-highlight-subtle);
+  color: #fff;
+}
+.shiny-pill:is(:hover, :focus-visible)::before,
+.shiny-pill:is(:hover, :focus-visible)::after {
+  animation-play-state: running;
+}
+.shiny-pill:is(:hover, :focus-visible) span::before {
+  opacity: 1;
+}
+
+/* Nav pill needs overflow: visible to not clip dropdown */
+#nav-pill.shiny-pill {
+  overflow: visible;
+}
+/* Suppress the square shimmer pseudo-elements on nav pill —
+   overflow:visible can't clip them, so hide them entirely.
+   The animated border gradient still works without these. */
+#nav-pill.shiny-pill::before,
+#nav-pill.shiny-pill::after {
+  display: none;
+}
+/* Regular buttons clip the shimmer cleanly */
+#begin-btn.shiny-pill,
+#scroll-hint.shiny-pill {
+  overflow: hidden;
+}
+
+#scroll-hint.shiny-pill {
+  --shiny-bg:               #0a1c5d;
+  --shiny-bg-subtle:        #1a2f7a;
+  --shiny-highlight:        #4d7fff;
+  --shiny-highlight-subtle: #85a8ff;
+}
+
+/* ─── Sound Timeline Panel ───────────────────────────────────── */
+.sound-timeline-panel {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(calc(100% + 40px));
+  z-index: 200;
+  width: calc(100vw - 48px);
+  max-width: 1100px;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 8px;
+  overflow: hidden;
+  transition:
+    transform 0.45s cubic-bezier(0.34, 1.08, 0.64, 1),
+    opacity   0.35s ease;
+}
+
+.sound-timeline-panel.stl-visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sound-timeline-panel canvas {
+  display: block;
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RADIAL NAV EXPERIMENT
+   Toggle: add/remove class "use-radial-nav" on <body>
+   Original #nav-pill: hidden via CSS, untouched in DOM.
+   Show/hide radial nav: add/remove class "rn-active" on #radial-nav
+   (added on Start press, removed on resetBeginButton)
+═══════════════════════════════════════════════════════════════ */
+
+/* ─── Mode switching ─────────────────────────────────────────── */
+body.use-radial-nav #nav-pill { display: none; }
+#radial-nav                   { display: none; }
+
+/* In radial mode: nav exists in DOM but starts invisible (before Start) */
+body.use-radial-nav #radial-nav {
+  display: flex;
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%) translateX(18px); /* enters from right edge */
+  z-index: 100;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.34, 1.08, 0.64, 1);
+}
+
+/* Active — shown after Start is pressed */
+body.use-radial-nav #radial-nav.rn-active {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Items: no pointer events unless nav is active */
+body.use-radial-nav #radial-nav .rn-item             { pointer-events: none; }
+body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
+
+/* ─── Arc guide SVG ───────────────────────────────────────────── */
+.rn-arc-svg {
+  position: absolute;
+  top: 0; right: 0;
+  width: 72px;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Nav item ────────────────────────────────────────────────── */
+.rn-item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 18px 32px 18px 56px;
+  /* Arc: each item shifted by --arc-offset (inline style) + small base offset */
+  transform: translateX(calc(var(--arc-offset, 0px) + 6px));
+  transition: transform 0.55s cubic-bezier(0.34, 1.08, 0.64, 1);
+}
+
+/* Glass background pill — appears on hover / active */
+.rn-item::before {
+  content: '';
+  position: absolute;
+  inset: 4px 12px;
+  background: rgba(4, 12, 9, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 12px;
+  border: 1px solid rgba(77, 217, 192, 0);
+  opacity: 0;
+  transition: opacity 0.4s ease, border-color 0.4s ease, background 0.4s ease;
+}
+.rn-item:hover::before {
+  opacity: 1;
+  border-color: rgba(77, 217, 192, 0.10);
+}
+.rn-item.active::before {
+  opacity: 1;
+  background: rgba(77, 217, 192, 0.06);
+  border-color: rgba(77, 217, 192, 0.22);
+}
+
+/* ─── Label ──────────────────────────────────────────────────── */
+.rn-label {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+  position: relative;
+  transition: color 0.35s ease, letter-spacing 0.35s ease;
+  user-select: none;
+}
+.rn-item:hover .rn-label  { color: rgba(255, 255, 255, 0.60); }
+.rn-item.active .rn-label {
+  color: #ffffff;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+}
+
+/* ─── Dot ────────────────────────────────────────────────────── */
+.rn-dot {
+  flex-shrink: 0;
+  position: relative;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(77, 217, 192, 0.18);
+  border: 1px solid rgba(77, 217, 192, 0.35);
+  box-shadow: 0 0 5px rgba(77, 217, 192, 0.06);
+  transition: all 0.4s cubic-bezier(0.34, 1.1, 0.64, 1);
+  z-index: 1;
+}
+
+/* Aura ring — blooms on active */
+.rn-dot::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(77,217,192,0.25) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.rn-item:hover .rn-dot {
+  background: rgba(77, 217, 192, 0.50);
+  border-color: rgba(77, 217, 192, 0.70);
+  box-shadow: 0 0 10px rgba(77, 217, 192, 0.40), 0 0 20px rgba(77, 217, 192, 0.15);
+  transform: scale(1.3);
+}
+.rn-item.active .rn-dot {
+  background: #4dd9c0;
+  border-color: #4dd9c0;
+  box-shadow:
+    0 0 10px rgba(77, 217, 192, 1.0),
+    0 0 22px rgba(77, 217, 192, 0.60),
+    0 0 44px rgba(77, 217, 192, 0.22);
+  transform: scale(1.7);
+}
+.rn-item.active .rn-dot::after { opacity: 1; }
+
+/* ─── Hover / active slide-in ────────────────────────────────── */
+.rn-item:hover {
+  transform: translateX(calc(var(--arc-offset, 0px) - 10px));
+}
+.rn-item.active {
+  transform: translateX(calc(var(--arc-offset, 0px) - 16px));
+}
+
+/* ─── Hamburger menu — hidden on desktop ────────────────────── */
+#hamburger-btn  { display: none; }
+#hamburger-menu { display: none; }
+
+/* ─── Mobile line-break helper — invisible on desktop ────────── */
+.mobile-br { display: none; }
+
+/* ─── Mobile ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .brand-name.is-logo {
+    top: 24px;
+    left: 24px;
+  }
+  #brand-icon {
+    top: 24px;
+    left: 24px;
+  }
+  #scroll-text-layer {
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  .scroll-text-block {
+    width: 100%;
+    left: 0;
+    transform: none;
+    border-radius: 0;
+    padding: 28px 24px 36px;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .scroll-text-heading {
+    flex: none;
+    align-self: auto;
+    margin-bottom: 4px;
+  }
+
+  .scroll-text-line {
+    font-size: 14px;
+    letter-spacing: 0.04em;
+  }
+
+  .go-back-btn  {
+    right: auto;
+    left: 12px;
+    top: auto;
+    bottom: calc(100% + 12px);
+    transform: none;
+    font-size: 11px;
+  }
+  .continue-btn {
+    left: auto;
+    right: 12px;
+    top: auto;
+    bottom: calc(100% + 12px);
+    transform: none;
+    font-size: 11px;
+  }
+
+  /* ── Hero start screen ── */
+  #hero-overlay {
+    padding: 40px 24px;   /* less horizontal indent → title hugs the left edge */
+  }
+
+  .brand-name {
+    font-size: 38px;
+  }
+
+  .hero-tagline {
+    font-size: 15px;
+  }
+
+  .mobile-br { display: inline; }
+
+  #begin-btn {
+    padding: 16px 48px;
+    font-size: 14px;
+  }
+
+  /* ── Hamburger — replace radial nav on mobile ── */
+  body.use-radial-nav #radial-nav { display: none !important; }
+
+  /* Sound icon: right next to the hamburger
+     Must use body.use-radial-nav to beat the higher-specificity desktop rule */
+  body.use-radial-nav #sound-toggle { top: 50px; right: 68px; left: auto; min-width: 48px; min-height: 48px; padding: 12px; }
+
+  #hamburger-btn {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    position: fixed;
+    top: 50px;
+    right: 24px;
+    z-index: 110;
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+  }
+
+  #hamburger-btn span {
+    display: block;
+    width: 22px;
+    height: 1.5px;
+    background: rgba(255,255,255,0.85);
+    border-radius: 2px;
+    transition: transform 0.28s ease, opacity 0.2s ease;
+    transform-origin: center;
+  }
+
+  #hamburger-btn.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+  #hamburger-btn.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+  #hamburger-btn.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+  #hamburger-menu {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset: 0;
+    background: rgba(4,9,7,0.97);
+    backdrop-filter: blur(24px);
+    z-index: 105;
+    padding: 110px 32px 56px;
+    gap: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+  }
+
+  #hamburger-menu.open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .hm-item {
+    background: none;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    text-align: left;
+    font-family: 'Chakra Petch', sans-serif;
+    font-size: 32px;
+    font-weight: 300;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.65);
+    cursor: pointer;
+    padding: 20px 0;
+    transition: color 0.2s ease;
+  }
+
+  .hm-item:first-child { border-top: 1px solid rgba(255,255,255,0.07); }
+  .hm-item:active      { color: #fff; }
+
+  /* ── Pollen text — push lower on mobile ── */
+  .pollen-text {
+    top: 62%;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Pollen Text — floating scattered letters above Contact flower
+   ═══════════════════════════════════════════════════════════════ */
+
+.pollen-text {
+  position: fixed;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 15;
+  user-select: none;
+}
+
+.pt-word {
+  display: flex;
+  align-items: center;
+}
+
+.pt-gap {
+  display: inline-block;
+  width: 0.55em;
+}
+
+/* Outer: GSAP push target — no visual style */
+.pt-letter {
+  display: inline-block;
+  position: relative;
+}
+
+/* Inner: CSS float animation + base style */
+.pt-char {
+  display: inline-block;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.96);
+  text-transform: uppercase;
+  opacity: 0.82;
+  transform: translateY(var(--oy, 0px));
+  animation: ptFloat var(--dur, 4s) ease-in-out var(--delay, 0s) infinite alternate;
+}
+
+@keyframes ptFloat {
+  from { transform: translateY(var(--oy, 0px)); }
+  to   { transform: translateY(calc(var(--oy, 0px) - 6px)); }
+}

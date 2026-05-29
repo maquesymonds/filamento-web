@@ -1,0 +1,28 @@
+{
+  "name": "filamento-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@theatre/core": "^0.7.2",
+    "@theatre/studio": "^0.7.2",
+    "gsap": "^3.12.5",
+    "simplex-noise": "^4.0.3",
+    "splitting": "^1.1.0",
+    "three": "^0.180.0",
+    "tone": "^15.1.22"
+  },
+  "devDependencies": {
+    "@babel/generator": "^7.29.1",
+    "@babel/parser": "^7.29.3",
+    "@babel/traverse": "^7.29.0",
+    "@babel/types": "^7.29.0",
+    "vite": "^5.4.10",
+    "vite-plugin-tsl-operator": "^1.10.0"
+  }
+}
