@@ -4,6 +4,7 @@ import gsap from 'gsap'
 import { TypeShuffle } from './type-shuffle.js'
 
 let _taglineShuffle = null
+let _hintTimeout    = null
 
 export function setLoadProgress(_progress) { /* loader removed */ }
 
@@ -89,7 +90,8 @@ export function setupBeginButton(onActivate) {
     })
 
     // ── "Begin the journey" appears after the intro camera move ──────
-    setTimeout(() => {
+    _hintTimeout = setTimeout(() => {
+      _hintTimeout = null
       if (hint) {
         hint.style.pointerEvents = 'auto'
         gsap.to(hint, { opacity: 1, duration: 0.8, ease: 'power2.out' })
@@ -155,8 +157,10 @@ export function resetBeginButton() {
     btn.disabled            = false
     gsap.fromTo(btn, { opacity: 0 }, { opacity: 1, duration: 0.8, delay: 0.4, ease: 'power2.out' })
   }
+  if (_hintTimeout) { clearTimeout(_hintTimeout); _hintTimeout = null }
   if (hint) {
+    gsap.killTweensOf(hint)
+    gsap.set(hint, { opacity: 0 })
     hint.style.pointerEvents = 'none'
-    gsap.to(hint, { opacity: 0, duration: 0.3 })
   }
 }

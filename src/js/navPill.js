@@ -170,7 +170,7 @@ function _goToContactFromStart() {
   const beginBtn   = document.getElementById('begin-btn')
   const scrollHint = document.getElementById('scroll-hint')
   if (beginBtn)   { beginBtn.style.opacity = '0'; beginBtn.style.pointerEvents = 'none' }
-  if (scrollHint) { scrollHint.style.opacity = '0'; scrollHint.style.pointerEvents = 'none' }
+  if (scrollHint) { gsap.killTweensOf(scrollHint); scrollHint.style.opacity = '0'; scrollHint.style.pointerEvents = 'none' }
   hideHeroText()
   startJungle()
   jumpToContactFromStart()

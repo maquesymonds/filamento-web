@@ -296,6 +296,11 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
       hideButterflies()     // hide butterflies so they don't appear at the start of the next loop
       CONFIG.scroll.sections.filter(s => s.hasText).forEach(s => hideSectionText(s.id))
 
+      // Snap hint to opacity 0 — if the 2400ms timeout fired while navigating away,
+      // the hint would otherwise remain visible during the circle transition.
+      const _hintEl = document.getElementById('scroll-hint')
+      if (_hintEl) { gsap.killTweensOf(_hintEl); gsap.set(_hintEl, { opacity: 0 }); _hintEl.style.pointerEvents = 'none' }
+
       // Snap pollen text to opacity 0 instantly — the 0.5s fade from hideSectionText('contact')
       // runs concurrently with the circle, making pollen visible through the transparent interior.
       const _pollenEl = document.getElementById('pollen-text')
