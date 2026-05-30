@@ -21,11 +21,11 @@ let _flyTimer    = 0
 const FLY_DURATION = 2.2     // seconds before butterflies are hidden after fly-away
 
 // Live-tweakable params (updated by Theatre.js onValuesChange)
-let _attract    = 0.008
-let _velLimit   = 0.22
+let _attract    = 0.004
+let _velLimit   = 0.10
 let _scaleMult  = 1.0
 let _mobileMult = 1.0
-let _flapMult   = 1.0
+let _flapMult   = 0.45
 let _targetDist = 18
 let _driftAmp   = 3.5
 let _lerpSpeed  = 0.05
