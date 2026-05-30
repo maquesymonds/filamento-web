@@ -30,9 +30,12 @@ export function getScrollFrame() { return _scrollFrame }
 
 // Called by the dev timeline scrubber — syncs internal scroll state so the
 // wheel listener doesn't snap back to the old position on the next event.
-let _seekFn        = null
-let _autoPlayTween = null
-let _activeOnWheel = null
+let _seekFn           = null
+let _autoPlayTween    = null
+let _activeOnWheel    = null
+let _activeTouchStart = null
+let _activeTouchMove  = null
+let _activeTouchEnd   = null
 
 // Approach freeze — frame 170 stops the scroll until user clicks Continue
 let _approachFrozen    = false
@@ -75,7 +78,10 @@ export function jumpScrollTo(t) {
 // Stop any active journey (auto-play tween + scroll listener) without triggering the loop.
 export function stopJourney() {
   if (_autoPlayTween) { _autoPlayTween.kill(); _autoPlayTween = null }
-  if (_activeOnWheel) { window.removeEventListener('wheel', _activeOnWheel); _activeOnWheel = null }
+  if (_activeOnWheel)    { window.removeEventListener('wheel',      _activeOnWheel);    _activeOnWheel    = null }
+  if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart); _activeTouchStart = null }
+  if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove);  _activeTouchMove  = null }
+  if (_activeTouchEnd)   { window.removeEventListener('touchend',   _activeTouchEnd);   _activeTouchEnd   = null }
   _seekFn = null
   _approachFrozen = false
 }
@@ -310,8 +316,31 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   }
 
   _activeOnWheel = onWheel
-  window.removeEventListener('wheel', _activeOnWheel)   // no duplicates
+  window.removeEventListener('wheel', _activeOnWheel)
   window.addEventListener('wheel', _activeOnWheel, { passive: true })
+
+  // ── Touch support for mobile ─────────────────────────────────────────────────
+  let _touchY = null
+
+  _activeTouchStart = (e) => { _touchY = e.touches[0].clientY }
+
+  _activeTouchMove  = (e) => {
+    if (_touchY === null) return
+    const y  = e.touches[0].clientY
+    const dy = _touchY - y          // positive = swipe up = forward
+    _touchY  = y
+    if (Math.abs(dy) > 0.5) onWheel({ deltaY: dy * 5 })
+  }
+
+  _activeTouchEnd = () => { _touchY = null }
+
+  if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart) }
+  if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove)  }
+  if (_activeTouchEnd)   { window.removeEventListener('touchend',   _activeTouchEnd)   }
+  window.addEventListener('touchstart', _activeTouchStart, { passive: true })
+  window.addEventListener('touchmove',  _activeTouchMove,  { passive: true })
+  window.addEventListener('touchend',   _activeTouchEnd,   { passive: true })
+
   console.log('[Journey] wheel scroll | freeze frame:', freezeFr, '(t=', freezeTime?.toFixed(3), ') | loop frame:', scrollEndFr, '(t=', scrollEnd?.toFixed(3), ')')
 }
 

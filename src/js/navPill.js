@@ -286,4 +286,21 @@ export function initNavPill() {
     if (!onStart) return
     _goToContactFromStart()
   }, { passive: true })
+
+  // Touch swipe down on start screen → go to contact
+  let _startTouchY = null
+  window.addEventListener('touchstart', (e) => {
+    _startTouchY = e.touches[0].clientY
+  }, { passive: true })
+  window.addEventListener('touchend', (e) => {
+    if (_startTouchY === null) return
+    const endY  = e.changedTouches[0].clientY
+    const swipe = endY - _startTouchY   // positive = swipe down
+    _startTouchY = null
+    if (swipe < 40) return              // not a clear downward swipe
+    const beginBtn = document.getElementById('begin-btn')
+    const onStart  = beginBtn && !beginBtn.disabled && parseFloat(beginBtn.style.opacity) > 0.5
+    if (!onStart) return
+    _goToContactFromStart()
+  }, { passive: true })
 }
