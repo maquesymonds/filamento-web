@@ -24,6 +24,7 @@ const FLY_DURATION = 2.2     // seconds before butterflies are hidden after fly-
 let _attract    = 0.008
 let _velLimit   = 0.22
 let _scaleMult  = 1.0
+let _mobileMult = 1.0
 let _flapMult   = 1.0
 let _targetDist = 18
 let _driftAmp   = 3.5
@@ -206,12 +207,12 @@ class Butterfly {
     this.o3d.position.copy(center).addScaledVector(dir, 5 + Math.random() * 15)
     this.vel.set(_rnd(0.15, true), _rnd(0.15, true), _rnd(0.15, true))
     this.baseScale = 0.15 + Math.pow(Math.random(), 0.6) * 1.85
-    this.o3d.scale.setScalar(this.baseScale * _scaleMult)
+    this.o3d.scale.setScalar(this.baseScale * _scaleMult * _mobileMult)
   }
 
   tick(dt, sharedTarget, elapsed, camRight, camUp) {
     // Apply live scale multiplier
-    this.o3d.scale.setScalar(this.baseScale * _scaleMult)
+    this.o3d.scale.setScalar(this.baseScale * _scaleMult * _mobileMult)
 
     // Wing flap
     this.phase += this.fspd * _flapMult * dt
@@ -291,6 +292,7 @@ function _initTheatre() {
 
 export function initButterflies(scene) {
   _scene = scene
+  _mobileMult = window.innerWidth <= 768 ? 0.45 : 1.0
   for (let i = 0; i < MAX_COUNT; i++) {
     const b = new Butterfly()
     _butterflies.push(b)
