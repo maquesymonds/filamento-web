@@ -243,7 +243,7 @@ export function initNavPill() {
         cont.addEventListener('click', () => {
           _close()
           hideSectionText('process')
-          if (!releaseApproachFreeze()) _animateTo('work')
+          if (!releaseApproachFreeze()) _jumpTo('work')
         })
       } else {
         cont.addEventListener('click', () => _animateTo(next.id))
