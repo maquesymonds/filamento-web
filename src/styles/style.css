@@ -568,13 +568,17 @@ body.use-radial-nav #sound-toggle { right: 32px; }
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
-  color: rgba(255, 255, 255, 0.75);
+  color: #ffffff;
   font-family: inherit;
   font-size: 14px;
   font-weight: 400;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   padding: 4px 0;
+  text-shadow:
+    0 0 8px rgba(255,255,255,0.9),
+    0 0 20px rgba(255,255,255,0.5),
+    0 0 40px rgba(255,255,255,0.2);
   white-space: nowrap;
   transition: color 0.2s ease;
 }
@@ -591,6 +595,7 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 .continue-btn svg {
   flex-shrink: 0;
   transition: transform 0.2s ease;
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.8));
 }
 
 .go-back-btn:hover svg  { transform: translateX(-3px); }
