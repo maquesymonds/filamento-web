@@ -77,7 +77,7 @@ export const CONFIG = {
   // ── Copy de las secciones ────────────────────────────────────
   scrollCopy: {
     studio: {
-      heading: 'Funcionality is<br>no longer enough',
+      heading: 'Studio',
       lines: [
         'Filamento is a digital studio crafting high-end experiences where brand, art, and technology converge. We specialize in immersive websites, 3D design, and interactive web experiences.',
         'We partner with brands who understand that digital presence shapes perception, transforming that presence into something unforgettable.',

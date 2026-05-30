@@ -455,11 +455,11 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 
 .scroll-text-heading {
   flex: 0 0 42%;
-  font-size: clamp(14px, 2.2vw, 30px);
+  font-size: clamp(28px, 4.5vw, 72px);
   text-transform: uppercase;
   font-weight: 200;
   letter-spacing: 0.04em;
-  line-height: 1.15;
+  line-height: 1.1;
   margin-bottom: 0;
   color: #fff;
   align-self: center;
@@ -1462,7 +1462,7 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
 
   /* Sound icon: right next to the hamburger
      Must use body.use-radial-nav to beat the higher-specificity desktop rule */
-  body.use-radial-nav #sound-toggle { top: 50px; right: 68px; left: auto; min-width: 48px; min-height: 48px; padding: 12px; }
+  body.use-radial-nav #sound-toggle { top: 50px; right: 68px; left: auto; min-width: 36px; min-height: 36px; padding: 8px; transform: scale(0.8); transform-origin: right center; }
 
   #hamburger-btn {
     display: flex;
@@ -1480,6 +1480,8 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     border: none;
     cursor: pointer;
     padding: 8px;
+    opacity: 0;
+    pointer-events: none;
   }
 
   #hamburger-btn span {
@@ -1537,14 +1539,15 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
   .hm-item:first-child { border-top: 1px solid rgba(255,255,255,0.07); }
   .hm-item:active      { color: #fff; }
 
-  /* ── Pollen text — push lower on mobile ── */
+  /* ── Pollen text — anchor from bottom on mobile ── */
   .pollen-text {
-    top: 78%;
+    top: auto;
+    bottom: 6%;
   }
 
   /* ── Nav hint — push lower on mobile ── */
   #scroll-discover {
-    top: 88px;
+    top: 280px;
   }
 }
 

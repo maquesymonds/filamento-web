@@ -115,6 +115,9 @@ export function resetBeginButton() {
   _btnActivated = false
   // Hide radial nav — shown again only after next Start press
   document.getElementById('radial-nav')?.classList.remove('rn-active')
+  // Hide hamburger on mobile — re-shown after next Start press
+  const _hbBtn = document.getElementById('hamburger-btn')
+  if (_hbBtn) { gsap.set(_hbBtn, { opacity: 0 }); _hbBtn.style.pointerEvents = 'none' }
   const btn     = document.getElementById('begin-btn')
   const hint    = document.getElementById('scroll-hint')
   const brand   = document.querySelector('.brand-name')

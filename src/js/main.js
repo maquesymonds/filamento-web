@@ -216,6 +216,9 @@ async function boot() {
     document.querySelectorAll('.rn-item').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.section === 'studio')
     })
+    // Show hamburger on mobile smoothly after Start
+    const _hbBtn = document.getElementById('hamburger-btn')
+    if (_hbBtn) gsap.to(_hbBtn, { opacity: 1, duration: 0.6, delay: 0.4, ease: 'power2.out', onComplete: () => { _hbBtn.style.pointerEvents = 'auto' } })
     playIntro(() => {
       window.dispatchEvent(new CustomEvent('filamento:ready'))
       enableEndScroll(getAnimationTime())
