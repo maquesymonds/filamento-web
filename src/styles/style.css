@@ -363,6 +363,7 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 }
 
 /* ─── Begin button ───────────────────────────────────────────── */
+#start-btn,
 #begin-btn {
   position: fixed;
   bottom: 80px;
@@ -378,6 +379,7 @@ body.use-radial-nav #sound-toggle { right: 32px; }
   opacity: 0;
 }
 
+#start-btn:disabled,
 #begin-btn:disabled { pointer-events: none; }
 
 /* ─── Begin the journey button ───────────────────────────────── */
@@ -1178,6 +1180,7 @@ body.use-radial-nav #sound-toggle { right: 32px; }
   display: none;
 }
 /* Regular buttons clip the shimmer cleanly */
+#start-btn.shiny-pill,
 #begin-btn.shiny-pill,
 #scroll-hint.shiny-pill {
   overflow: hidden;

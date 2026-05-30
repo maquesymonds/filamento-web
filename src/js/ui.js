@@ -12,27 +12,52 @@ export function hideLoader() {
   return Promise.resolve()
 }
 
+// Phase 1 — called on loader resolve: shows overlay + "Start" button (no audio needed yet)
 export function revealHero() {
-  const overlay = document.getElementById('hero-overlay')
-  const btn     = document.getElementById('begin-btn')
-  const brand   = document.querySelector('.brand-name')
-  const tagline = document.querySelector('.hero-tagline')
+  const overlay  = document.getElementById('hero-overlay')
+  const startBtn = document.getElementById('start-btn')
 
-  if (overlay) gsap.to(overlay, { opacity: 1, duration: 1.0, ease: 'power2.out' })
-  if (btn)     gsap.to(btn,     { opacity: 1, duration: 0.8, delay: 0.8, ease: 'power2.out' })
+  if (overlay)  gsap.to(overlay,  { opacity: 1, duration: 1.0, ease: 'power2.out' })
+  if (startBtn) gsap.to(startBtn, { opacity: 1, duration: 0.8, delay: 0.6, ease: 'power2.out' })
+}
 
-  // Slide up from below the #hero-brand overflow:hidden mask
-  if (brand) gsap.fromTo(brand, { y: '220%' }, { y: 0, duration: 2.4, ease: 'expo.out', delay: 0.35, force3D: true })
+// Phase 2 — called when user clicks "Start": animates brand + tagline, then shows "Begin"
+export function triggerHeroIntro() {
+  const startBtn = document.getElementById('start-btn')
+  const beginBtn = document.getElementById('begin-btn')
+  const brand    = document.querySelector('.brand-name')
+  const tagline  = document.querySelector('.hero-tagline')
+
+  // Hide "Start" button
+  if (startBtn) {
+    gsap.to(startBtn, { opacity: 0, duration: 0.3, ease: 'power2.in',
+      onComplete: () => { startBtn.style.display = 'none' },
+    })
+  }
+
+  // Slide up brand from below the hero-brand overflow:hidden mask
+  if (brand) gsap.fromTo(brand, { y: '220%' }, { y: 0, duration: 2.4, ease: 'expo.out', delay: 0.2, force3D: true })
 
   if (tagline) {
     if (!_taglineShuffle) _taglineShuffle = new TypeShuffle(tagline)
-    // Pre-scramble while invisible: lock widths + fill with colored random chars (opacity:0 per cell)
-    // Same pattern as showSectionText — browser never paints the original white text
     _taglineShuffle._lockWidths()
     _taglineShuffle._preScramble()
     gsap.set(tagline, { opacity: 1 })
     setTimeout(() => _taglineShuffle.trigger('fx5'), 400)
   }
+
+  // "Begin" appears after brand animation settles
+  if (beginBtn) gsap.to(beginBtn, { opacity: 1, duration: 0.8, delay: 1.2, ease: 'power2.out' })
+}
+
+// Called once on load — wires "Start" click to audio unlock + hero animation
+export function setupStartButton(onStart) {
+  const btn = document.getElementById('start-btn')
+  if (!btn) { onStart?.(); return }
+  btn.addEventListener('click', () => {
+    btn.disabled = true
+    onStart?.()
+  }, { once: true })
 }
 
 // onActivate: callback que se llama al hacer click. Persiste entre loops.
