@@ -428,6 +428,7 @@ export function startJourney(onComplete, onAutoPlayEnd) {
   const chipStopTime       = CONFIG.journey.endFrame / fps  // frame 249 — FLOR_GRANDE
   const approachFreezeTime = (CONFIG.journey.approachFreezeFrame ?? 170) / fps
   const approachDecelTime  = approachFreezeTime - (55 / fps)   // start decelerating 55 frames before
+  const workDecelTime      = targetTime - (40 / fps)            // smooth stop into work section
 
   // Reset approach freeze state for a fresh journey
   _approachFrozen = false
@@ -438,10 +439,11 @@ export function startJourney(onComplete, onAutoPlayEnd) {
   onComplete?.()
 
   // Auto-play at constant speed from intro end → frame 258
-  let _processHandled  = false
-  let _chipHandled     = false
-  let _approachHandled = false
-  _approachDecelling   = false
+  let _processHandled   = false
+  let _chipHandled      = false
+  let _approachHandled  = false
+  let _workDecelHandled = false
+  _approachDecelling    = false
 
   const proxy = { t: introEndTime }
   _autoPlayTween = gsap.to(proxy, {
@@ -484,12 +486,30 @@ export function startJourney(onComplete, onAutoPlayEnd) {
         hideSectionText('process')
         setTimeout(() => showSectionText('work'), 600)
       }
+
+      // Smooth decel into work — prevents abrupt stop at auto-play end (mirrors approach decel)
+      if (!_workDecelHandled && _approachDone && proxy.t >= workDecelTime) {
+        _workDecelHandled = true
+        gsap.to(_autoPlayTween, {
+          timeScale: 0,
+          duration:  1.2,
+          ease:      'power3.out',
+          onComplete() {
+            const landingT = getAnimationTime()
+            _autoPlayTween?.pause()
+            _autoPlayTween = null
+            onAutoPlayEnd?.()
+            enableEndScroll(landingT)
+          },
+        })
+      }
     },
     onComplete() {
-      _autoPlayTween = null
-      onAutoPlayEnd?.()
-      // Set up fresh scroll from where auto-play landed
-      enableEndScroll(targetTime)
+      if (_autoPlayTween) {
+        _autoPlayTween = null
+        onAutoPlayEnd?.()
+        enableEndScroll(targetTime)
+      }
     },
   })
 }
