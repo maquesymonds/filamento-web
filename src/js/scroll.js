@@ -158,7 +158,7 @@ export function showSectionText(sectionId) {
     }
     gsap.set(block, { opacity: 1 })
     if (shuffles) {
-      shuffles.forEach((ts, i) => setTimeout(() => ts.trigger('fx5'), i * 600))
+      shuffles.forEach((ts, i) => setTimeout(() => ts.trigger('fx5'), i * 200))
     }
 
     // Reveal go-back + continue buttons smoothly after a short delay
