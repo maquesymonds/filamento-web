@@ -79,21 +79,19 @@ export const CONFIG = {
     studio: {
       heading: 'Studio',
       lines: [
-        'Filamento is a digital studio crafting high-end experiences where brand, art, and technology converge. We specialize in immersive websites, 3D design, and interactive web experiences.',
-        'We partner with brands who understand that digital presence shapes perception, transforming that presence into something unforgettable.',
+        'Filamento is a digital studio crafting high-end immersive and interactive web, and 3D experiences where brand, art, and technology converge. We partner with brands who understand that digital presence shapes perception, transforming it into something unforgettable because functionality is no longer enough.',
       ],
     },
     process: {
-      heading: 'We build universes,<br>not landing pages',
+      heading: 'Approach',
       lines: [
-        'By weaving together interaction, motion, sound, and atmosphere, we create digital spaces meant to be explored.',
-        'Everything begins as one core idea and remains unbroken. Design, 3D, and code aren\'t separate phases, they operate as a single, unified system.',
+        'We create digital spaces meant to be explored by weaving together interaction, motion, sound, and atmosphere. Everything begins as one core idea where design, 3D, and code aren\'t separate phases, but operate seamlessly as a single, unified system.',
       ],
     },
     work: {
       heading: 'Our work',
       lines: [
-        'A curated selection of our latest projects. Immersive and interactive web experiences, 3D design, and digital storytelling for brands that want their presence to be felt, not just seen.',
+        'A curated selection of our latest web experiences, 3D design, and digital storytelling, crafted for brands that want their presence to be felt, not just seen.',
       ],
     },
     contact: {
