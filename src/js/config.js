@@ -100,7 +100,7 @@ export const CONFIG = {
       items: [
         { label: 'LinkedIn',        href: 'https://www.linkedin.com/company/filamentolabs/' },
         { label: 'Instagram',       href: 'https://www.instagram.com/filamento____?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==' },
-        { label: '+598 98 124 455', href: 'tel:+59898124455' },
+        { label: 'WhatsApp',        href: 'https://wa.me/59898124455' },
         { label: 'Mail',            href: 'mailto:filamentolabs@gmail.com' },
       ],
     },

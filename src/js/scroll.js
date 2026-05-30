@@ -137,7 +137,7 @@ export function showSectionText(sectionId) {
 
   if (sectionId === 'studio') {
     const d = _discoverEl()
-    if (d) gsap.to(d, { opacity: 1, duration: 1.2, ease: 'power2.out', delay: 0.5 })
+    if (d) { gsap.killTweensOf(d); gsap.to(d, { opacity: 1, duration: 1.2, ease: 'power2.out', delay: 0.5 }) }
   }
 
   _visibleSection = sectionId
@@ -176,7 +176,7 @@ export function hideSectionText(sectionId) {
 
   if (sectionId === 'studio') {
     const d = _discoverEl()
-    if (d) gsap.to(d, { opacity: 0, duration: 0.5, ease: 'power2.in' })
+    if (d) { gsap.killTweensOf(d); gsap.to(d, { opacity: 0, duration: 0.5, ease: 'power2.in' }) }
   }
 
   if (_visibleSection === sectionId) _visibleSection = null
