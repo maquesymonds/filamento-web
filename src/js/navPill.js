@@ -179,6 +179,10 @@ function _goToContactFromStart() {
 export function initNavPill() {
   if (!_pill || !_menuBtn) return
 
+  // Apply hover scramble to the Start button
+  const _beginBtn = document.getElementById('begin-btn')
+  if (_beginBtn) _initBtnFx2(_beginBtn)
+
   // Logo/icon click should reset to the post-loader start state, not reload the page
   setIconClickFn(() => _goToStart())
 
