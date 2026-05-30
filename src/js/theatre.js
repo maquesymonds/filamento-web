@@ -16,8 +16,13 @@ export async function initTheatre() {
   if (import.meta.env.DEV) {
     const { default: studio } = await import('@theatre/studio')
     studio.initialize()
+    // Wait for both studio and project to be ready before enabling save
+    await project.ready
     studio.ui.restore()
+
     let _uiVisible = true
+    let _studioReady = true
+
     window.addEventListener('keydown', async (e) => {
       if (e.key === 't' || e.key === 'T') {
         _uiVisible = !_uiVisible
@@ -26,6 +31,7 @@ export async function initTheatre() {
       // Cmd+S / Ctrl+S — save Theatre.js state to src/js/state.json
       if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault()
+        if (!_studioReady) { console.warn('[Theatre] studio not ready yet'); return }
         try {
           const content = studio.createContentOfSaveFile(project)
           const res = await fetch('/__save-theatre-state', {

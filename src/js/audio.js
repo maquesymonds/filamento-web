@@ -210,7 +210,7 @@ export function playOnUnlock(src, volume = 1.0) {
 }
 
 function _setupGestureUnlock() {
-  const events     = ['pointerdown', 'touchstart', 'keydown']
+  const events     = ['pointermove', 'pointerdown', 'touchstart', 'keydown']
   const _onGesture = async (e) => {
     // The sound button owns its own interactions via _toggle / click —
     // skip here so touchstart doesn't race with the click event.

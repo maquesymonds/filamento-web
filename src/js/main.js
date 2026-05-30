@@ -17,12 +17,12 @@ import * as THREE from 'three'
 import gsap from 'gsap'
 import { initFilamentoLoader }                                   from './filamento-loader.js'
 import { initTheatre }                                            from './theatre.js'
-import { initAudio, startAmbient, startJungle, playGrowing, isSoundOn, playOneShot } from './audio.js'
+import { initAudio, startAmbient, startJungle, playGrowing, isSoundOn, playOneShot, playOnUnlock } from './audio.js'
 import { initRenderer, startLoop, onTick, setRenderPipeline, getRenderer } from './scene.js'
 import { loadGLB }                                               from './loaders.js'
 import { initExperience, activateExperience, playIntro, playIntroCameraOrbit, getCamera, getScene, tickChipFloat, chipDragStart, chipDragMove, chipDragEnd, initOverviewCamera, toggleOverview, tickOverviewControls, isOverviewActive, getAnimationTime, getAnimationDuration, setAnimationTime } from './experience.js'
 import { initScroll, showSectionText, hideSectionText }          from './scroll.js'
-import { setLoadProgress, hideLoader, revealHero, triggerHeroIntro, setupStartButton, setupBeginButton } from './ui.js'
+import { setLoadProgress, hideLoader, revealHero, setupBeginButton } from './ui.js'
 import { CONFIG }                                                from './config.js'
 import { startJourney, getScrollFrame, seekJourney, enableEndScroll } from './journey.js'
 import { initNavPill }                                          from './navPill.js'
@@ -190,8 +190,9 @@ async function boot() {
   })
 
   // ── 8. UI ────────────────────────────────────────────────────────────────
-  // Phase 1: loader done → show overlay + "Start" button (no audio yet)
   resolveLoader(() => {
+    startAmbient()
+    playOnUnlock('/audio/Start.mp3', 0.8)
     playIntroCameraOrbit()
     revealHero()
     growRoots({ duration: 10, ease: CONFIG.intro.ease })
@@ -201,17 +202,10 @@ async function boot() {
   initScroll()
   initAudioTrimmer()
 
-  // ── 10. Botón "Start" (first click — unlocks audio + triggers hero animation) ──
+  // ── 10. Botón "Start" ────────────────────────────────────────────────────
   initNavPill()
   initRadialNav() // RADIAL NAV EXPERIMENT — active when <body class="use-radial-nav">
   initPollenText()
-  setupStartButton(() => {
-    startAmbient()
-    playOneShot('/audio/Start.mp3', 0.8)
-    triggerHeroIntro()
-  })
-
-  // ── 11. Botón "Begin" (second click — starts the journey) ────────────────
   setupBeginButton(() => {
     startJungle()
     showSectionText('studio')

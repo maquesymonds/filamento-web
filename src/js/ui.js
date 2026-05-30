@@ -12,31 +12,17 @@ export function hideLoader() {
   return Promise.resolve()
 }
 
-// Phase 1 — called on loader resolve: shows overlay + "Start" button (no audio needed yet)
 export function revealHero() {
-  const overlay  = document.getElementById('hero-overlay')
-  const startBtn = document.getElementById('start-btn')
+  const overlay = document.getElementById('hero-overlay')
+  const btn     = document.getElementById('begin-btn')
+  const brand   = document.querySelector('.brand-name')
+  const tagline = document.querySelector('.hero-tagline')
 
-  if (overlay)  gsap.to(overlay,  { opacity: 1, duration: 1.0, ease: 'power2.out' })
-  if (startBtn) gsap.to(startBtn, { opacity: 1, duration: 0.8, delay: 0.6, ease: 'power2.out' })
-}
+  if (overlay) gsap.to(overlay, { opacity: 1, duration: 1.0, ease: 'power2.out' })
+  if (btn)     gsap.to(btn,     { opacity: 1, duration: 0.8, delay: 0.8, ease: 'power2.out' })
 
-// Phase 2 — called when user clicks "Start": animates brand + tagline, then shows "Begin"
-export function triggerHeroIntro() {
-  const startBtn = document.getElementById('start-btn')
-  const beginBtn = document.getElementById('begin-btn')
-  const brand    = document.querySelector('.brand-name')
-  const tagline  = document.querySelector('.hero-tagline')
-
-  // Hide "Start" button
-  if (startBtn) {
-    gsap.to(startBtn, { opacity: 0, duration: 0.3, ease: 'power2.in',
-      onComplete: () => { startBtn.style.display = 'none' },
-    })
-  }
-
-  // Slide up brand from below the hero-brand overflow:hidden mask
-  if (brand) gsap.fromTo(brand, { y: '220%' }, { y: 0, duration: 2.4, ease: 'expo.out', delay: 0.2, force3D: true })
+  // Slide up from below the #hero-brand overflow:hidden mask
+  if (brand) gsap.fromTo(brand, { y: '220%' }, { y: 0, duration: 2.4, ease: 'expo.out', delay: 0.35, force3D: true })
 
   if (tagline) {
     if (!_taglineShuffle) _taglineShuffle = new TypeShuffle(tagline)
@@ -45,19 +31,6 @@ export function triggerHeroIntro() {
     gsap.set(tagline, { opacity: 1 })
     setTimeout(() => _taglineShuffle.trigger('fx5'), 400)
   }
-
-  // "Begin" appears after brand animation settles
-  if (beginBtn) gsap.to(beginBtn, { opacity: 1, duration: 0.8, delay: 1.2, ease: 'power2.out' })
-}
-
-// Called once on load — wires "Start" click to audio unlock + hero animation
-export function setupStartButton(onStart) {
-  const btn = document.getElementById('start-btn')
-  if (!btn) { onStart?.(); return }
-  btn.addEventListener('click', () => {
-    btn.disabled = true
-    onStart?.()
-  }, { once: true })
 }
 
 // onActivate: callback que se llama al hacer click. Persiste entre loops.
@@ -84,9 +57,6 @@ export function setupBeginButton(onActivate) {
     const icon    = document.getElementById('brand-icon')
 
     // ── Both texts slide down through the hero-brand mask ───────────
-    // hero-brand has overflow:hidden — texts clip at its bottom edge.
-    // ease: power3.in = accelerating fall, like gravity.
-    // overwrite: true kills the resetBeginButton y→0 tween if Start is clicked early.
     if (tagline) gsap.to(tagline, { y: 80,  duration: 0.42, ease: 'power3.in', overwrite: true })
     if (brand)   gsap.to(brand,   { y: 180, duration: 0.58, ease: 'power3.in', overwrite: true,
       onComplete() {
@@ -178,7 +148,7 @@ export function resetBeginButton() {
 
   if (btn) {
     btn.style.display       = ''
-    btn.style.pointerEvents = ''   // clear inline override set by _jumpTo in navPill/radialNav
+    btn.style.pointerEvents = ''
     btn.disabled            = false
     gsap.fromTo(btn, { opacity: 0 }, { opacity: 1, duration: 0.8, delay: 0.4, ease: 'power2.out' })
   }
