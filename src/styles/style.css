@@ -1568,7 +1568,7 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
   }
 
   .contact-item {
-    width: 50%;
+    width: 33.33%;
     text-align: center;
     font-size: clamp(10px, 3.2vw, 13px);
   }

@@ -97,10 +97,9 @@ export const CONFIG = {
     },
     contact: {
       items: [
-        { label: 'LinkedIn',        href: 'https://www.linkedin.com/company/filamentolabs/' },
-        { label: 'Instagram',       href: 'https://www.instagram.com/filamento____?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==' },
-        { label: 'WhatsApp',        href: 'https://wa.me/59898124455' },
-        { label: 'Mail',            href: 'mailto:filamentolabs@gmail.com' },
+        { label: 'LinkedIn',  href: 'https://www.linkedin.com/company/filamentolabs/' },
+        { label: 'Instagram', href: 'https://www.instagram.com/filamento____?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==' },
+        { label: 'Mail',      href: 'mailto:filamentolabs@gmail.com' },
       ],
     },
   },
