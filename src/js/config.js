@@ -79,7 +79,8 @@ export const CONFIG = {
     studio: {
       heading: 'Studio',
       lines: [
-        'Filamento is a digital studio crafting high-end immersive and interactive web, and 3D experiences where brand, art, and technology converge. We partner with brands who understand that digital presence shapes perception, transforming it into something unforgettable because functionality is no longer enough.',
+        'Filamento is a digital studio crafting high-end immersive and interactive web, and 3D experiences where brand, art, and technology converge.',
+        'We partner with brands who understand that digital presence shapes perception, transforming it into something unforgettable because functionality is no longer enough.',
       ],
     },
     process: {
