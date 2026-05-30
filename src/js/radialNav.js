@@ -73,9 +73,17 @@ function _jumpTo(sectionId) {
   const beginBtn   = document.getElementById('begin-btn')
   const scrollHint = document.getElementById('scroll-hint')
   if (beginBtn) { beginBtn.style.opacity = '0'; beginBtn.style.pointerEvents = 'none' }
+  if (scrollHint) { gsap.killTweensOf(scrollHint); gsap.set(scrollHint, { opacity: 0 }); scrollHint.style.pointerEvents = 'none' }
 
-  // Hide text and snap scene BEFORE snapshot — canvas still holds the old frame
-  hideAllSectionText()
+  // Snap ALL text blocks + pollen to opacity 0 instantly before snapshot —
+  // fadeout (0.55s) would bleed the old section text through the circle transition.
+  document.querySelectorAll('.scroll-text-block').forEach(el => {
+    gsap.killTweensOf(el)
+    gsap.set(el, { opacity: 0 })
+  })
+  const _pollenEl = document.getElementById('pollen-text')
+  if (_pollenEl) { gsap.killTweensOf(_pollenEl); gsap.set(_pollenEl, { opacity: 0 }) }
+
   setAnimationTime(t)
 
   const origin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }
@@ -88,7 +96,6 @@ function _jumpTo(sectionId) {
           gsap.to(scrollHint, { opacity: 1, duration: 0.5, ease: 'power2.out' })
         }
       } else {
-        if (scrollHint) { scrollHint.style.opacity = '0'; scrollHint.style.pointerEvents = 'none' }
         jumpScrollTo(t)
       }
       if (sectionId === 'process') showButterflies(getCamera())
