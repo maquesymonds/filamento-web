@@ -447,7 +447,7 @@ export function startJourney(onComplete, onAutoPlayEnd) {
   _autoPlayTween = gsap.to(proxy, {
     t:        targetTime,
     duration: CONFIG.journey.duration,
-    ease:     CONFIG.journey.ease,
+    ease:     'power2.out',
     onUpdate() {
       // Cap at freeze frame while decelerating
       if (_approachDecelling) {
