@@ -84,7 +84,6 @@ export function initScroll() {
           el.rel = 'noopener noreferrer'
           el.textContent = `[ ${item.label} ]`
           itemsRow.appendChild(el)
-          _initContactFx2(el)
         })
         block.appendChild(itemsRow)
       } else {
@@ -108,7 +107,15 @@ export function initScroll() {
       layer.appendChild(block)
 
       _blocks[s.id] = block
-      _shuffles[s.id] = Array.from(block.querySelectorAll('h2, p')).map(el => new TypeShuffle(el))
+      _shuffles[s.id] = Array.from(block.querySelectorAll('h2, p, .contact-item')).map(el => new TypeShuffle(el))
+
+      if (s.id === 'contact') {
+        _shuffles[s.id].forEach(ts => {
+          ts.DOM.el.addEventListener('mouseenter', () => {
+            if (!ts.isAnimating) ts.trigger('fx3')
+          })
+        })
+      }
     })
 }
 
