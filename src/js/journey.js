@@ -322,7 +322,11 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   // ── Touch support for mobile ─────────────────────────────────────────────────
   let _touchY = null
 
-  _activeTouchStart = (e) => { _touchY = e.touches[0].clientY }
+  _activeTouchStart = (e) => {
+    // If touching the pollen, let pollenText handle it — don't scroll
+    if (e.target.closest('#pollen-text')) return
+    _touchY = e.touches[0].clientY
+  }
 
   _activeTouchMove  = (e) => {
     if (_touchY === null) return

@@ -1539,7 +1539,12 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
 
   /* ── Pollen text — push lower on mobile ── */
   .pollen-text {
-    top: 72%;
+    top: 78%;
+  }
+
+  /* ── Nav hint — push lower on mobile ── */
+  #scroll-discover {
+    top: 88px;
   }
 }
 
