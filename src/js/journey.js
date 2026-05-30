@@ -146,7 +146,9 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     _scrollFrame  = Math.max(0, Math.min(Math.round(scroll * fps), scrollEndFr))
   }
 
-  let _workTimeout = null
+  let _workTimeout    = null
+  let _studioTimeout  = null
+  let _processTimeout = null
 
   const onWheel = (e) => {
     // Kill auto-play tween if running — user takes manual control
@@ -243,42 +245,46 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     if (t < studioEndTime && !_studioShown) {
       _studioShown = true
       _processHidden = true
-      clearTimeout(_workTimeout)
-      _workTimeout = null
+      clearTimeout(_workTimeout);    _workTimeout    = null
+      clearTimeout(_processTimeout); _processTimeout = null
       hideSectionText('process')
       hideSectionText('work')
-      showSectionText('studio')
+      clearTimeout(_studioTimeout)
+      _studioTimeout = setTimeout(() => showSectionText('studio'), 600)
     } else if (t >= studioEndTime && _studioShown) {
       _studioShown = false
+      clearTimeout(_studioTimeout); _studioTimeout = null
       hideSectionText('studio')
       if (t < processEndTime) {
         _processHidden = false
-        showSectionText('process')
+        clearTimeout(_processTimeout)
+        _processTimeout = setTimeout(() => showSectionText('process'), 600)
       }
     }
 
     // Process ↔ Work text — bidirectional
     if (t >= processEndTime && !_processHidden) {
       _processHidden = true
+      clearTimeout(_processTimeout); _processTimeout = null
       hideSectionText('process')
       _workTimeout = setTimeout(() => showSectionText('work'), 600)
     } else if (t >= studioEndTime && t < processEndTime && _processHidden && !_studioShown) {
       _processHidden = false
-      clearTimeout(_workTimeout)
-      _workTimeout = null
+      clearTimeout(_workTimeout); _workTimeout = null
       hideSectionText('work')
-      showSectionText('process')
+      clearTimeout(_processTimeout)
+      _processTimeout = setTimeout(() => showSectionText('process'), 600)
     }
 
     // Show Contact only when camera reaches the top, hide Work to avoid overlap
     if (t >= contactShowT && !_contactShown) {
       _contactShown = true
       hideSectionText('work')
-      showSectionText('contact')
+      setTimeout(() => showSectionText('contact'), 600)
     } else if (t < contactHideT && _contactShown) {
       _contactShown = false
       hideSectionText('contact')
-      showSectionText('work')
+      setTimeout(() => showSectionText('work'), 600)
     }
 
     // Loop: fires only after the user scrolls through the hold period + intentional extra scroll
@@ -422,7 +428,7 @@ export function startJourney(onComplete, onAutoPlayEnd) {
   _approachDone   = false
 
   hideSectionText('studio')
-  showSectionText('process')
+  setTimeout(() => showSectionText('process'), 600)
   onComplete?.()
 
   // Auto-play at constant speed from intro end → frame 258
