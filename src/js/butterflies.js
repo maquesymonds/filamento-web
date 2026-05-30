@@ -292,7 +292,7 @@ function _initTheatre() {
 
 export function initButterflies(scene) {
   _scene = scene
-  _mobileMult = window.innerWidth <= 768 ? 0.45 : 1.0
+  _mobileMult = window.innerWidth <= 768 ? 0.45 : 0.55
   for (let i = 0; i < MAX_COUNT; i++) {
     const b = new Butterfly()
     _butterflies.push(b)
