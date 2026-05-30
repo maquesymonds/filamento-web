@@ -4,7 +4,7 @@ import { setAnimationTime, getAnimationTime, getAnimationDuration, getCamera } f
 import { showSectionText, hideSectionText, hideAllSectionText }     from './scroll.js'
 import { jumpScrollTo, stopJourney, restartLoop, releaseApproachFreeze, jumpToContactFromStart } from './journey.js'
 import { startJungle }                                            from './audio.js'
-import { resetBeginButton, setIconClickFn, hideHeroText }           from './ui.js'
+import { resetBeginButton, setIconClickFn, hideHeroText, activateHeroToNav } from './ui.js'
 import { transitionRootsColorBack, transitionPetalColorsBack }    from './materials.js'
 import { showButterflies, flyAwayButterflies }                     from './butterflies.js'
 
@@ -172,6 +172,10 @@ function _goToContactFromStart() {
   if (beginBtn)   { beginBtn.style.opacity = '0'; beginBtn.style.pointerEvents = 'none' }
   if (scrollHint) { gsap.killTweensOf(scrollHint); scrollHint.style.opacity = '0'; scrollHint.style.pointerEvents = 'none' }
   hideHeroText()
+  activateHeroToNav()
+  document.getElementById('radial-nav')?.classList.add('rn-active')
+  const _hbBtn = document.getElementById('hamburger-btn')
+  if (_hbBtn) gsap.to(_hbBtn, { opacity: 1, duration: 0.6, delay: 0.4, ease: 'power2.out', onComplete: () => { _hbBtn.style.pointerEvents = 'auto' } })
   startJungle()
   jumpToContactFromStart()
 }

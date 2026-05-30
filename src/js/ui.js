@@ -99,6 +99,27 @@ export function setupBeginButton(onActivate) {
   btn.addEventListener('click', _btnClickHandler)
 }
 
+// Transitions from the pre-Start hero state to the in-experience nav state
+// (star icon + wordmark visible, begin-btn hidden) — mirrors what Start click does
+// but without starting the journey. Safe to call multiple times.
+export function activateHeroToNav() {
+  if (_btnActivated) return
+  _btnActivated = true
+  if (_hintTimeout) { clearTimeout(_hintTimeout); _hintTimeout = null }
+  const btn      = document.getElementById('begin-btn')
+  const icon     = document.getElementById('brand-icon')
+  const wordmark = document.getElementById('brand-wordmark')
+  if (btn) { btn.style.opacity = '0'; btn.style.pointerEvents = 'none'; btn.disabled = true }
+  if (icon) {
+    icon.classList.add('is-visible')
+    gsap.fromTo(icon, { opacity: 0, y: -8 }, { opacity: 0.9, y: 0, duration: 0.55, ease: 'power2.out' })
+    icon.addEventListener('click', () => _onIconClick(), { once: true })
+  }
+  if (wordmark) {
+    gsap.fromTo(wordmark, { opacity: 0, y: -6 }, { opacity: 0.7, y: 0, duration: 0.55, ease: 'power2.out' })
+  }
+}
+
 // Hides brand + tagline instantly — called when jumping to a section via nav.
 export function hideHeroText() {
   const brand   = document.querySelector('.brand-name')
