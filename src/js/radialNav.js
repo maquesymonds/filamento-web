@@ -83,6 +83,8 @@ function _jumpTo(sectionId) {
   })
   const _pollenEl = document.getElementById('pollen-text')
   if (_pollenEl) { gsap.killTweensOf(_pollenEl); gsap.set(_pollenEl, { opacity: 0 }) }
+  const _discoverEl = document.getElementById('scroll-discover')
+  if (_discoverEl) { gsap.killTweensOf(_discoverEl); gsap.set(_discoverEl, { opacity: 0 }) }
 
   setAnimationTime(t)
 
