@@ -193,7 +193,7 @@ async function boot() {
   // Signal assets ready — introLoader fires reveal when its animation completes
   resolveLoader(() => {
     startAmbient()
-    playOnUnlock('/audio/Start.mp3', 0.8)
+    playOneShot('/audio/Start.mp3', 0.8)
     playIntroCameraOrbit()
     revealHero()
     growRoots({ duration: 10, ease: CONFIG.intro.ease })
