@@ -455,10 +455,10 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 
 .scroll-text-heading {
   flex: 0 0 42%;
-  font-size: clamp(28px, 4.5vw, 72px);
+  font-size: clamp(20px, 2.6vw, 42px);
   text-transform: uppercase;
   font-weight: 200;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   line-height: 1.1;
   margin-bottom: 0;
   color: #fff;
@@ -1413,6 +1413,7 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     flex: none;
     align-self: auto;
     margin-bottom: 4px;
+    font-size: clamp(28px, 4.5vw, 48px);
   }
 
   .scroll-text-line {
