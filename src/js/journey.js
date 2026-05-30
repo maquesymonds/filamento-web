@@ -4,7 +4,7 @@
 
 import gsap                                               from 'gsap'
 import { CONFIG }                                         from './config.js'
-import { setAnimationTime, getAnimationTime, getAnimationDuration, getIntroEndTime, stopChipFloat, enableChipFloat, resetAnimations, playIntroCameraOrbit } from './experience.js'
+import { setAnimationTime, getAnimationTime, getAnimationDuration, getIntroEndTime, stopChipFloat, enableChipFloat, resetAnimations, playIntroCameraOrbit, killIntro } from './experience.js'
 import { showSectionText, hideSectionText }               from './scroll.js'
 import { playCircleOpen }                                 from './circleTransition.js'
 import { resetBeginButton }                               from './ui.js'
@@ -153,6 +153,12 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   const onWheel = (e) => {
     // Kill auto-play tween if running — user takes manual control
     if (_autoPlayTween) { _autoPlayTween.kill(); _autoPlayTween = null }
+    // If intro was still playing, kill it and sync scroll to the current camera position
+    if (killIntro()) {
+      const cur = getAnimationTime()
+      scroll = Math.max(scroll, cur)
+      t      = Math.min(scroll, freezeTime)
+    }
 
     if (_transitioning) return
     if (performance.now() < _frozenUntil) return

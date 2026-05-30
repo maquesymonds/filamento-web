@@ -24,7 +24,7 @@ import { initExperience, activateExperience, playIntro, playIntroCameraOrbit, ge
 import { initScroll, showSectionText, hideSectionText }          from './scroll.js'
 import { setLoadProgress, hideLoader, revealHero, setupBeginButton } from './ui.js'
 import { CONFIG }                                                from './config.js'
-import { startJourney, getScrollFrame, seekJourney, enableEndScroll } from './journey.js'
+import { startJourney, getScrollFrame, seekJourney, enableEndScroll, jumpScrollTo } from './journey.js'
 import { initNavPill }                                          from './navPill.js'
 import { initRadialNav }                                        from './radialNav.js'
 import { initPointCloud, updatePointCloudTime }                  from './pointcloud.js'
@@ -218,17 +218,22 @@ async function boot() {
     // Show hamburger on mobile smoothly after Start
     const _hbBtn = document.getElementById('hamburger-btn')
     if (_hbBtn) gsap.to(_hbBtn, { opacity: 1, duration: 0.6, delay: 0.4, ease: 'power2.out', onComplete: () => { _hbBtn.style.pointerEvents = 'auto' } })
+    // Enable scroll immediately — no lock during the intro animation.
+    // The first wheel event will kill the intro tween if still playing and sync position.
+    enableEndScroll(0)
+
+    // Show butterflies on first scroll (mirrors the "Continue" button path)
+    let _butterfliesShown = false
+    window.addEventListener('wheel', () => {
+      if (_butterfliesShown) return
+      _butterfliesShown = true
+      showButterflies(getCamera())
+    }, { once: true, passive: true })
+
     playIntro(() => {
       window.dispatchEvent(new CustomEvent('filamento:ready'))
-      enableEndScroll(getAnimationTime())
-
-      // Show butterflies on first scroll (mirrors the "Continue" button path)
-      let _butterfliesShown = false
-      window.addEventListener('wheel', () => {
-        if (_butterfliesShown) return
-        _butterfliesShown = true
-        showButterflies(getCamera())
-      }, { once: true, passive: true })
+      // Intro finished naturally — sync scroll state to where the intro landed
+      jumpScrollTo(getAnimationTime())
     })
   })
 

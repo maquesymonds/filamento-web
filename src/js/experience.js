@@ -383,10 +383,12 @@ export function playIntroCameraOrbit(onComplete) {
   })
 }
 
+let _introTween = null
+
 export function playIntro(onComplete, onProgress) {
   const introEndTime = getIntroEndTime()
   const proxy = { t: 0 }
-  gsap.to(proxy, {
+  _introTween = gsap.to(proxy, {
     t:         introEndTime,
     duration:  CONFIG.intro.duration,
     ease:      CONFIG.intro.ease,
@@ -394,8 +396,16 @@ export function playIntro(onComplete, onProgress) {
       setAnimationTime(proxy.t)
       if (onProgress && introEndTime > 0) onProgress(proxy.t / introEndTime)
     },
-    onComplete,
+    onComplete: () => { _introTween = null; onComplete?.() },
   })
+}
+
+// Returns true if the intro was still running and got killed.
+export function killIntro() {
+  if (!_introTween) return false
+  _introTween.kill()
+  _introTween = null
+  return true
 }
 
 export function getIntroEndTime() {
