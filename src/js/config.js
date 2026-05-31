@@ -4,8 +4,7 @@ export const CONFIG = {
 
   // ── Assets ───────────────────────────────────────────────────
   assets: {
-    model:      '/models/ESCENA_FILAMENTO7_DRACO.glb',
-    pointCloud: '/models/FLORGRANDE.ply',
+    model:      '/models/ESCENA_FILAMENTO8_DRACO.glb',
   },
 
   // ── Renderer ─────────────────────────────────────────────────
@@ -81,6 +80,9 @@ export const CONFIG = {
       lines: [
         'Filamento is a digital studio crafting high-end immersive and interactive web, and 3D experiences where brand, art, and technology converge.',
         'We partner with brands who understand that digital presence shapes perception, transforming it into something unforgettable because functionality is no longer enough.',
+      ],
+      mobileLines: [
+        'Filamento is a digital studio creating high-end immersive web and 3D experiences where brand, art, and technology converge. We help brands transform their digital presence into something unforgettable—because functionality alone is no longer enough.',
       ],
     },
     process: {

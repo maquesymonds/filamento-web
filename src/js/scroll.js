@@ -95,7 +95,8 @@ export function initScroll() {
 
         const linesWrap = document.createElement('div')
         linesWrap.className = 'scroll-text-lines'
-        copy.lines.forEach(text => {
+        const lines = (_IS_MOBILE && copy.mobileLines) ? copy.mobileLines : copy.lines
+        lines.forEach(text => {
           const p = document.createElement('p')
           p.className = 'scroll-text-line'
           p.textContent = text

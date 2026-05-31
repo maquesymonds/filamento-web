@@ -57,6 +57,17 @@ html, body {
   z-index: 5;
 }
 
+#vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0;
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 18%),
+    linear-gradient(to top,    rgba(0,0,0,0.45) 0%, transparent 22%);
+}
+
 
 /* ─── Hero overlay ───────────────────────────────────────────── */
 #hero-overlay {
@@ -380,23 +391,6 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 
 #begin-btn:disabled { pointer-events: none; }
 
-/* ─── Begin the journey button ───────────────────────────────── */
-#scroll-hint {
-  position: fixed;
-  bottom: 36px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  opacity: 0;
-  pointer-events: none;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 12px 32px;
-  cursor: pointer;
-}
-
 #scroll-discover {
   position: fixed;
   top: 60px;
@@ -535,8 +529,9 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 .contact-items {
   display: flex;
   width: 100%;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  gap: 64px;
   pointer-events: auto;
   padding: 0 8px;
 }
@@ -1183,16 +1178,8 @@ body.use-radial-nav #sound-toggle { right: 32px; }
   display: none;
 }
 /* Regular buttons clip the shimmer cleanly */
-#begin-btn.shiny-pill,
-#scroll-hint.shiny-pill {
+#begin-btn.shiny-pill {
   overflow: hidden;
-}
-
-#scroll-hint.shiny-pill {
-  --shiny-bg:               #0a1c5d;
-  --shiny-bg-subtle:        #1a2f7a;
-  --shiny-highlight:        #4d7fff;
-  --shiny-highlight-subtle: #85a8ff;
 }
 
 /* ─── Sound Timeline Panel ───────────────────────────────────── */
@@ -1568,7 +1555,6 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
   }
 
   .contact-item {
-    width: 33.33%;
     text-align: center;
     font-size: clamp(10px, 3.2vw, 13px);
   }
@@ -1579,9 +1565,67 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     bottom: 73%;
   }
 
-  /* ── Nav hint — push lower on mobile ── */
+  /* ── Nav hint — push higher on mobile ── */
   #scroll-discover {
-    top: 280px;
+    top: 150px;
+  }
+
+  /* ── Project panel — mobile layout ─────────────────────────── */
+  #project-panel {
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow: hidden;
+  }
+
+  .project-page-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-height: none;
+    gap: 0;
+    align-items: stretch;
+  }
+
+  /* Image card — top of panel, pushed down a bit */
+  .project-page-image-wrap {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    width: calc(100% - 24px);
+    max-width: none;
+    margin: 88px 12px 0;
+    order: -1;
+    flex-shrink: 0;
+  }
+
+  /* "Scroll to close" — overlaid at top of image area */
+  .project-page-hint {
+    top: 96px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* Close arrow — tighter position on mobile */
+  .project-page-close {
+    top: 16px;
+    left: 16px;
+  }
+
+  /* Text info — frosted glass card pinned to bottom */
+  .project-page-info {
+    flex: none;
+    margin-top: auto;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-radius: 16px;
+    padding: 24px 20px 40px;
+    margin: auto 12px 24px;
+    gap: 12px;
   }
 }
 

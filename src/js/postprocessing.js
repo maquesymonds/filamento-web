@@ -11,7 +11,7 @@ const _obj = sheet.object('Distorsión Transición', {
   frecuencia: types.number(1.2,   { range: [0.1,  6.0],  nudgeMultiplier: 0.05  }),
   velocidad:  types.number(0.8,   { range: [0,    4.0],  nudgeMultiplier: 0.05  }),
   blur:       types.number(0.035, { range: [0,    0.18], nudgeMultiplier: 0.002 }),
-  cromatico:  types.number(0.18,  { range: [0,    1.0],  nudgeMultiplier: 0.02  }),
+  cromatico:  types.number(0.0,   { range: [0,    1.0],  nudgeMultiplier: 0.02  }),
   tinte:      types.rgba({ r: 0.03, g: 0.01, b: 0.40, a: 1 }),
 }, { reconfigure: true })
 
@@ -81,9 +81,7 @@ const _frag = /* glsl */`
 
     vec4 col = vec4(colR.r, colG.g, colB.b, colG.a);
 
-    // Additive tint: colour from Theatre.js, intensity driven by distortion magnitude
     float distMag = abs(disp) / max(uAmplitud * effProgress, 0.0001);
-    col.rgb += uTinte * distMag * effProgress * uCromatico;
 
     gl_FragColor = col;
   }
@@ -116,7 +114,7 @@ export function initFilament(renderer) {
       uFrecuencia: { value: 1.2  },
       uVelocidad:  { value: 0.8  },
       uBlur:       { value: 0.035 },
-      uCromatico:  { value: 0.18 },
+      uCromatico:  { value: 0.0  },
       uTinte:      { value: new THREE.Vector3(0.03, 0.01, 0.40) },
     },
     vertexShader:   _vert,
@@ -152,8 +150,7 @@ export function tickFilament(elapsed) {
   _material.uniforms.uFrecuencia.value = v.frecuencia
   _material.uniforms.uVelocidad.value  = v.velocidad
   _material.uniforms.uBlur.value       = v.blur
-  _material.uniforms.uCromatico.value  = v.cromatico
-  _material.uniforms.uTinte.value.set(v.tinte.r, v.tinte.g, v.tinte.b)
+  _material.uniforms.uCromatico.value  = 0
 }
 
 export function isFilamentActive() { return _progress > 0.001 }

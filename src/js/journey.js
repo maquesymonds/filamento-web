@@ -36,6 +36,7 @@ let _activeOnWheel    = null
 let _activeTouchStart = null
 let _activeTouchMove  = null
 let _activeTouchEnd   = null
+let _inertiaRafId     = null
 
 // Approach freeze — frame 170 stops the scroll until user clicks Continue
 let _approachFrozen    = false
@@ -78,6 +79,7 @@ export function jumpScrollTo(t) {
 // Stop any active journey (auto-play tween + scroll listener) without triggering the loop.
 export function stopJourney() {
   if (_autoPlayTween) { _autoPlayTween.kill(); _autoPlayTween = null }
+  if (_inertiaRafId)     { cancelAnimationFrame(_inertiaRafId);                         _inertiaRafId     = null }
   if (_activeOnWheel)    { window.removeEventListener('wheel',      _activeOnWheel);    _activeOnWheel    = null }
   if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart); _activeTouchStart = null }
   if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove);  _activeTouchMove  = null }
@@ -176,6 +178,10 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
       _transitioning = true
       _seekFn = null
       window.removeEventListener('wheel', onWheel)
+      _stopInertia()
+      if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart); _activeTouchStart = null }
+      if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove);  _activeTouchMove  = null }
+      if (_activeTouchEnd)   { window.removeEventListener('touchend',   _activeTouchEnd);   _activeTouchEnd   = null }
 
       CONFIG.scroll.sections.filter(s => s.hasText).forEach(s => hideSectionText(s.id))
       const _pollenEl = document.getElementById('pollen-text')
@@ -298,6 +304,11 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
       _transitioning = true
       _seekFn = null
       window.removeEventListener('wheel', onWheel)
+      // Mobile: remove touch listeners too — sin esto siguen activos y rompen el estado al reiniciar
+      _stopInertia()
+      if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart); _activeTouchStart = null }
+      if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove);  _activeTouchMove  = null }
+      if (_activeTouchEnd)   { window.removeEventListener('touchend',   _activeTouchEnd);   _activeTouchEnd   = null }
 
       // Reset scene before snapshot so canvas still shows frame 359 (not rendered yet)
       // but the mixer is already at 0 — inner circle will reveal the beginning state
@@ -336,24 +347,45 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   window.removeEventListener('wheel', _activeOnWheel)
   window.addEventListener('wheel', _activeOnWheel, { passive: true })
 
-  // ── Touch support for mobile ─────────────────────────────────────────────────
-  let _touchY = null
+  // ── Touch support for mobile — con inercia ───────────────────────────────────
+  let _touchY   = null
+  let _touchVel = 0       // velocity en px/frame
+
+  const _stopInertia = () => {
+    if (_inertiaRafId) { cancelAnimationFrame(_inertiaRafId); _inertiaRafId = null }
+  }
+
+  const _runInertia = () => {
+    _touchVel *= 0.88                         // decay — 0.88 ≈ se detiene en ~400ms
+    if (Math.abs(_touchVel) > 0.3) {
+      onWheel({ deltaY: _touchVel })
+      _inertiaRafId = requestAnimationFrame(_runInertia)
+    } else {
+      _inertiaRafId = null
+    }
+  }
 
   _activeTouchStart = (e) => {
-    // If touching the pollen, let pollenText handle it — don't scroll
     if (e.target.closest('#pollen-text')) return
-    _touchY = e.touches[0].clientY
+    _stopInertia()
+    _touchVel = 0
+    _touchY   = e.touches[0].clientY
   }
 
-  _activeTouchMove  = (e) => {
+  _activeTouchMove = (e) => {
     if (_touchY === null) return
     const y  = e.touches[0].clientY
-    const dy = _touchY - y          // positive = swipe up = forward
+    const dy = _touchY - y                    // positivo = swipe arriba = avanzar
     _touchY  = y
-    if (Math.abs(dy) > 0.5) onWheel({ deltaY: dy * 5 })
+    _touchVel = dy                            // guarda velocidad para inercia
+    if (Math.abs(dy) > 0.3) onWheel({ deltaY: dy * 1.2 })
   }
 
-  _activeTouchEnd = () => { _touchY = null }
+  _activeTouchEnd = () => {
+    _touchY = null
+    _stopInertia()
+    if (Math.abs(_touchVel) > 1) _inertiaRafId = requestAnimationFrame(_runInertia)
+  }
 
   if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart) }
   if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove)  }

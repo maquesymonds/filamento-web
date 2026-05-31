@@ -237,18 +237,6 @@ async function boot() {
     })
   })
 
-  // ── 11. "Begin the journey" — auto-play de cámara ───────────────────────
-  // No { once: true } — el listener persiste para que funcione en cada loop
-  const journeyBtn = document.getElementById('scroll-hint')
-  if (journeyBtn) {
-    journeyBtn.addEventListener('click', () => {
-      journeyBtn.style.pointerEvents = 'none'
-      gsap.to(journeyBtn, { opacity: 0, duration: 0.4, ease: 'power2.in' })
-      showButterflies(getCamera())
-      startJourney(undefined, () => flyAwayButterflies(getCamera()))
-    })
-  }
-
   // ── 12. Init project panel + circle transition ───────────────────────────
   initProjectPanel()
   initCircleTransition()

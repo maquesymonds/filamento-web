@@ -675,6 +675,7 @@ function _aplicarValoresPetalos(mat, v) {
   // Defensivo: paneles opacos no incluyen transmission/thickness
   if ('transmission' in v) mat.transmission = v.transmission
   if ('thickness' in v)    mat.thickness    = v.thickness
+  if ('opacity' in v)      mat.opacity      = v.opacity
   mat.roughness                 = v.roughness
   mat.metalness                 = v.metalness
   mat.ior                       = v.ior
@@ -688,21 +689,22 @@ function _aplicarValoresPetalos(mat, v) {
   mat.envMapIntensity   = v.envMapIntensity
 }
 
-function _crearMaterialPetalos(nombrePanel, { conBloom = false, opaco = false, bloomDefault = false, transmissionDefault = 1.0 } = {}) {
+function _crearMaterialPetalos(nombrePanel, { conBloom = false, opaco = false, modoOpacidad = false, bloomDefault = false, transmissionDefault = 1.0 } = {}) {
   const mat = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     iridescence: 1.0,
     iridescenceIOR: 1.5,
     iridescenceThicknessRange: [100, 400],
-    transparent: !opaco,
-    transmission: opaco ? 0.0 : transmissionDefault,
+    transparent: !opaco || modoOpacidad,
+    transmission: (opaco || modoOpacidad) ? 0.0 : transmissionDefault,
     opacity: 1.0,
     roughness: 0.1,
     metalness: 0.0,
     emissive: new THREE.Color(0xffffff),
     emissiveIntensity: 0.3,
-    depthWrite: opaco,
-    side: opaco ? THREE.FrontSide : THREE.DoubleSide,
+    // modoOpacidad escribe profundidad → las plantas no desaparecen en la cola de transparencias
+    depthWrite: opaco || modoOpacidad,
+    side: (opaco || modoOpacidad) ? THREE.FrontSide : THREE.DoubleSide,
   })
 
   const seguidores  = []
@@ -722,10 +724,14 @@ function _crearMaterialPetalos(nombrePanel, { conBloom = false, opaco = false, b
     emissiveIntensity:   types.number(0.3,  { range: [0, 5],     nudgeMultiplier: 0.05 }),
     envMapIntensity:     types.number(1.0,  { range: [0, 5],     nudgeMultiplier: 0.05 }),
   }
-  // Paneles no-opacos incluyen sliders de transmission/thickness
-  if (!opaco) {
+  // Paneles vidrio (no-opaco, sin modoOpacidad) incluyen sliders de transmission/thickness
+  if (!opaco && !modoOpacidad) {
     props.transmission = types.number(transmissionDefault, { range: [0, 1], nudgeMultiplier: 0.01 })
     props.thickness    = types.number(0.5, { range: [0, 5], nudgeMultiplier: 0.05 })
+  }
+  // modoOpacidad: control de opacidad en vez de transmisión
+  if (modoOpacidad) {
+    props.opacity = types.number(1.0, { range: [0, 1], nudgeMultiplier: 0.01 })
   }
   if (conBloom) props.bloom = types.boolean(bloomDefault)
 
@@ -769,12 +775,12 @@ function _crearMaterialPetalos(nombrePanel, { conBloom = false, opaco = false, b
   return { mat, agregarSeguidor, setEmissiveAll, getEmissive }
 }
 
-const { mat: chipMaterial,         agregarSeguidor: chipFollow,         setEmissiveAll: chipSetEmissive,         getEmissive: chipGetEmissive         } = _crearMaterialPetalos('Chip')
+const { mat: chipMaterial,         agregarSeguidor: chipFollow,         setEmissiveAll: chipSetEmissive,         getEmissive: chipGetEmissive         } = _crearMaterialPetalos('Chip', { conBloom: true, bloomDefault: true })
 const { mat: florGrandeMaterial,   agregarSeguidor: florGrandeFollow                                                                                     } = _crearMaterialPetalos('Flor Grande')
 const { mat: terrainMaterial,      agregarSeguidor: terrainFollow                                                                                          } = _crearMaterialPetalos('Terrain', { conBloom: false, opaco: false, transmissionDefault: 0.88 })
 const { mat: semillasMaterial,     agregarSeguidor: semillasFollow                                                                                        } = _crearMaterialPetalos('Semillas', { conBloom: false, opaco: true })
 const { mat: florCentralMaterial,  agregarSeguidor: florCentralFollow,  setEmissiveAll: florCentralSetEmissive,  getEmissive: florCentralGetEmissive  } = _crearMaterialPetalos('Flor Central', { conBloom: true, opaco: true, bloomDefault: true })
-const { mat: plantasMaterial,      agregarSeguidor: plantasFollow,      setEmissiveAll: plantasSetEmissive,      getEmissive: plantasGetEmissive      } = _crearMaterialPetalos('Plantas', { conBloom: true, opaco: true, bloomDefault: true })
+const { mat: plantasMaterial,      agregarSeguidor: plantasFollow,      setEmissiveAll: plantasSetEmissive,      getEmissive: plantasGetEmissive      } = _crearMaterialPetalos('Plantas', { conBloom: true, modoOpacidad: true, bloomDefault: true })
 
 // ── Movimiento de plantas (onBeforeCompile injection) ────────────────────────
 
@@ -1106,6 +1112,14 @@ export function applyMaterials(gltfScene) {
     const esTerrain    = node.name.toLowerCase().includes('terrain') || node.name.toLowerCase().includes('terrrain')
     const esFlorCentral = node.name === 'flor_central'
     const esPlanta     = MESHES_PLANTAS.has(node.name)
+    const esChip       = node.name === 'chip'
+
+    // Chip y plantas: bloom propio, independiente del panel Bloom global.
+    // musguito se excluye: no tiene textura base, el emissive le saldría plano.
+    if (esChip || (esPlanta && node.name !== 'musguito')) {
+      delete nuevo.userData.origEmissive
+      nuevo.emissiveMap = nuevo.map
+    }
 
     // Terrain: wired to Theatre.js 'Terrain' panel via terrainFollow
     if (esTerrain) {

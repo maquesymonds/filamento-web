@@ -35,6 +35,72 @@ export function initProjectPanel() {
   const _closeBtn = document.getElementById('project-panel-close')
   if (_closeBtn) _closeBtn.addEventListener('click', () => { if (_open) closeProjectPanel() })
 
+  // ── Mobile swipe-left to close ────────────────────────────────────────────
+  // Listeners on window so child elements don't block the events.
+  let _swipeStartX   = null
+  let _swipeStartY   = null
+  let _swipeTracking = false   // true once horizontal dominance confirmed
+
+  window.addEventListener('touchstart', (e) => {
+    if (!_open) return
+    _swipeStartX   = e.touches[0].clientX
+    _swipeStartY   = e.touches[0].clientY
+    _swipeTracking = false
+  }, { passive: true })
+
+  window.addEventListener('touchmove', (e) => {
+    if (!_open || _swipeStartX === null) return
+    const dx = e.touches[0].clientX - _swipeStartX
+    const dy = e.touches[0].clientY - _swipeStartY
+    if (!_swipeTracking && Math.abs(dx) > 8) {
+      _swipeTracking = Math.abs(dx) > Math.abs(dy)
+    }
+    if (_swipeTracking && dx < 0) {
+      _panel.style.transition = 'none'
+      _panel.style.transform  = `translateX(${dx}px)`
+      _panel.style.opacity    = String(Math.max(0, 1 + dx / (window.innerWidth * 0.55)))
+    }
+  }, { passive: true })
+
+  window.addEventListener('touchend', (e) => {
+    if (!_open || _swipeStartX === null) return
+    const dx       = e.changedTouches[0].clientX - _swipeStartX
+    const tracking = _swipeTracking
+    _swipeStartX   = null
+    _swipeTracking = false
+
+    if (tracking && dx < -70) {
+      // Commit — slide off then clean up (skip circle transition for swipe)
+      _open = false
+      freezeScroll(900)
+      if (_mediaCursor)  _mediaCursor.classList.remove('visible')
+      if (_mediaOverlay) _mediaOverlay.style.display = 'none'
+      hideProjectBackground()
+      hideJellyfish()
+      const vid = document.getElementById('project-panel-video')
+      if (vid) { vid.pause(); vid.currentTime = 0 }
+      const _wordmark = document.getElementById('brand-wordmark')
+      if (_wordmark) gsap.to(_wordmark, { opacity: 0.7, duration: 0.4, delay: 0.15, ease: 'power2.out' })
+      const _icon = document.getElementById('brand-icon')
+      if (_icon && _icon.classList.contains('is-visible')) {
+        gsap.to(_icon, { opacity: 0.9, duration: 0.4, delay: 0.15, ease: 'power2.out', onStart: () => { _icon.style.pointerEvents = 'auto' } })
+      }
+      gsap.to(_panel, {
+        x: -window.innerWidth, opacity: 0, duration: 0.22, ease: 'power2.in',
+        onComplete() {
+          _panel.style.display = 'none'
+          gsap.set(_panel, { clearProps: 'x,opacity,transform,transition' })
+        },
+      })
+    } else {
+      // Cancel — snap back
+      gsap.to(_panel, {
+        x: 0, opacity: 1, duration: 0.38, ease: 'back.out(1.8)',
+        onComplete() { _panel.style.transform = ''; _panel.style.opacity = ''; _panel.style.transition = '' },
+      })
+    }
+  }, { passive: true })
+
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && _open) closeProjectPanel()
   })

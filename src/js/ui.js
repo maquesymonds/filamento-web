@@ -2,6 +2,25 @@
 
 import gsap from 'gsap'
 import { TypeShuffle } from './type-shuffle.js'
+import { sheet }       from './theatre.js'
+import { types }       from '@theatre/core'
+
+// ── Viñeta — Theatre.js controls ─────────────────────────────────────────────
+const _vignetteEl = document.getElementById('vignette')
+const _vignetteObj = sheet.object('Viñeta', {
+  opacidadArriba: types.number(0.45, { range: [0, 1],  nudgeMultiplier: 0.01 }),
+  opacidadAbajo:  types.number(0.45, { range: [0, 1],  nudgeMultiplier: 0.01 }),
+  alturaArriba:   types.number(18,   { range: [0, 50], nudgeMultiplier: 1    }),
+  alturaAbajo:    types.number(22,   { range: [0, 50], nudgeMultiplier: 1    }),
+}, { reconfigure: true })
+
+_vignetteObj.onValuesChange((v) => {
+  if (!_vignetteEl) return
+  _vignetteEl.style.background = [
+    `linear-gradient(to bottom, rgba(0,0,0,${v.opacidadArriba}) 0%, transparent ${v.alturaArriba}%)`,
+    `linear-gradient(to top,    rgba(0,0,0,${v.opacidadAbajo})  0%, transparent ${v.alturaAbajo}%)`,
+  ].join(', ')
+})
 
 let _taglineShuffle = null
 let _hintTimeout    = null
@@ -56,6 +75,9 @@ export function setupBeginButton(onActivate) {
     const tagline = document.querySelector('.hero-tagline')
     const icon    = document.getElementById('brand-icon')
 
+    // ── Viñeta fade in al entrar a la experiencia ────────────────────
+    if (_vignetteEl) gsap.to(_vignetteEl, { opacity: 1, duration: 1.5, ease: 'power2.inOut' })
+
     // ── Both texts slide down through the hero-brand mask ───────────
     if (tagline) gsap.to(tagline, { y: 80,  duration: 0.42, ease: 'power3.in', overwrite: true })
     if (brand)   gsap.to(brand,   { y: 180, duration: 0.58, ease: 'power3.in', overwrite: true,
@@ -84,15 +106,6 @@ export function setupBeginButton(onActivate) {
       onComplete: () => { btn.style.display = 'none' },
     })
 
-    // ── "Begin the journey" appears after the intro camera move ──────
-    _hintTimeout = setTimeout(() => {
-      _hintTimeout = null
-      if (hint) {
-        hint.style.pointerEvents = 'auto'
-        gsap.to(hint, { opacity: 1, duration: 0.8, ease: 'power2.out' })
-      }
-    }, 2400)
-
     onActivate?.()
   }
 
@@ -118,6 +131,7 @@ export function activateHeroToNav() {
   if (wordmark) {
     gsap.fromTo(wordmark, { opacity: 0, y: -6 }, { opacity: 0.7, y: 0, duration: 0.55, ease: 'power2.out' })
   }
+  if (_vignetteEl) gsap.to(_vignetteEl, { opacity: 1, duration: 1.5, ease: 'power2.inOut' })
 }
 
 // Hides brand + tagline instantly — called when jumping to a section via nav.
@@ -131,6 +145,8 @@ export function hideHeroText() {
 // Llamado desde el loop al volver al inicio — resetea el botón Start.
 export function resetBeginButton() {
   _btnActivated = false
+  // Viñeta desaparece al volver al inicio
+  if (_vignetteEl) gsap.to(_vignetteEl, { opacity: 0, duration: 1.0, ease: 'power2.inOut' })
   // Hide radial nav — shown again only after next Start press
   document.getElementById('radial-nav')?.classList.remove('rn-active')
   // Hide hamburger on mobile — re-shown after next Start press
