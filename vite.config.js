@@ -35,4 +35,16 @@ export default defineConfig({
     tslOperatorPlugin({ logs: false }),
     theatreSavePlugin(),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/three/addons') || id.includes('three/examples/jsm')) return 'three-addons'
+          if (id.includes('node_modules/three'))       return 'three'
+          if (id.includes('node_modules/gsap'))        return 'gsap'
+          if (id.includes('node_modules/@theatre'))    return 'theatre'
+        },
+      },
+    },
+  },
 })
