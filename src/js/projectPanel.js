@@ -160,6 +160,7 @@ export function openProjectPanel(index, origin, threeCanvas) {
   showProjectBackground(project.image || '', project.bgImage || project.image || '', project.bgTint, project.video || null)
 
   _open = true
+  _panel.dataset.project = project.title.toLowerCase().replace(/\s+/g, '-')
   _panel.style.display  = 'flex'
   _panel.style.opacity  = '1'
   _panel.style.clipPath = ''
