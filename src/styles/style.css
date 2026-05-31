@@ -912,6 +912,11 @@ body.use-radial-nav #sound-toggle { right: 32px; }
   transform: scale(1.25);
 }
 
+/* Arrow always glowing white so it's visible against any background */
+#project-panel-close svg {
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.7)) drop-shadow(0 0 10px rgba(255,255,255,0.35));
+}
+
 /* Text info — left column, bottom-aligned */
 .project-page-info {
   flex: 0 0 340px;
@@ -1603,9 +1608,25 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     flex-shrink: 0;
   }
 
-  /* "Scroll to close" — hidden on mobile */
+  /* "Scroll to close" — hidden on mobile by default */
   .project-page-hint {
     display: none;
+  }
+
+  /* "Click to see project" — shown above the video on mobile for projects with a link */
+  #project-panel[data-project] .project-page-hint[data-has-link="true"] {
+    display: block;
+    position: static;
+    transform: none;
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    color: rgba(255, 255, 255, 0.55);
+    text-decoration: none;
+    pointer-events: auto;
+    order: -2;
+    width: 100%;
   }
 
   /* Close arrow — tighter position on mobile */

@@ -410,6 +410,19 @@ function _populate(p) {
   _setText('project-panel-category', p.category)
   _setText('project-panel-desc',     p.description)
 
+  const hint = document.getElementById('project-panel-hint')
+  if (hint) {
+    if (p.webUrl) {
+      hint.textContent = 'Click to see project'
+      hint.href        = p.webUrl
+      hint.dataset.hasLink = 'true'
+    } else {
+      hint.textContent = 'Scroll to close'
+      hint.removeAttribute('href')
+      hint.dataset.hasLink = 'false'
+    }
+  }
+
   const webLink  = document.getElementById('project-panel-web')
   const caseLink = document.getElementById('project-panel-case')
   const linksRow = document.getElementById('project-panel-links')
