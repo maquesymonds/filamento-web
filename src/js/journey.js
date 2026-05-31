@@ -459,7 +459,7 @@ export function startJourney(onComplete, onAutoPlayEnd) {
   const targetTime         = CONFIG.journey.autoPlayEndFrame / fps
   const chipStopTime       = CONFIG.journey.endFrame / fps  // frame 249 — FLOR_GRANDE
   const approachFreezeTime = (CONFIG.journey.approachFreezeFrame ?? 170) / fps
-  const approachDecelTime  = approachFreezeTime - (100 / fps)   // start decelerating 100 frames before
+  const approachDecelTime  = approachFreezeTime - (55 / fps)   // start decelerating 55 frames before
 
   // Reset approach freeze state for a fresh journey
   _approachFrozen = false
@@ -479,7 +479,7 @@ export function startJourney(onComplete, onAutoPlayEnd) {
   _autoPlayTween = gsap.to(proxy, {
     t:        targetTime,
     duration: CONFIG.journey.duration,
-    ease:     'power1.inOut',
+    ease:     'power2.out',
     onUpdate() {
       // Cap at freeze frame while decelerating
       if (_approachDecelling) {
@@ -493,7 +493,7 @@ export function startJourney(onComplete, onAutoPlayEnd) {
         _approachDecelling = true
         gsap.to(_autoPlayTween, {
           timeScale: 0,
-          duration:  4.5,
+          duration:  2.8,
           ease:      'power4.out',
           onComplete() {
             _approachFrozen = true
