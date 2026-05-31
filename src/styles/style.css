@@ -1470,7 +1470,7 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
 
   /* Sound icon: right next to the hamburger
      Must use body.use-radial-nav to beat the higher-specificity desktop rule */
-  body.use-radial-nav #sound-toggle { top: 24px; right: 56px; left: auto; min-width: 36px; min-height: 36px; padding: 8px; transform: scale(0.8); transform-origin: right center; }
+  body.use-radial-nav #sound-toggle { top: 36px; right: 16px; left: auto; min-width: 36px; min-height: 36px; padding: 8px; transform: scale(0.8); transform-origin: right center; }
 
   #hamburger-btn {
     display: none !important;
