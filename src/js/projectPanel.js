@@ -423,10 +423,20 @@ function _populate(p) {
   if (caseLink) { caseLink.href = p.caseStudyUrl  || '#'; _show(caseLink, !!p.caseStudyUrl)  }
   if (linksRow) _show(linksRow, !!(p.webUrl || p.caseStudyUrl))
 
-  // Store URL for media click + show overlay only when there's a link
+  // Store URL for media click + show overlay only when there's a link.
+  // Delay pointer-events so the click that opened the panel doesn't immediately
+  // land on the overlay and navigate away before the user sees the panel.
   _currentWebUrl = p.webUrl || null
   if (imgWrap) imgWrap.classList.toggle('has-link', !!_currentWebUrl)
-  if (_mediaOverlay) _mediaOverlay.style.display = _currentWebUrl ? 'block' : 'none'
+  if (_mediaOverlay) {
+    if (_currentWebUrl) {
+      _mediaOverlay.style.display       = 'block'
+      _mediaOverlay.style.pointerEvents = 'none'
+      setTimeout(() => { if (_open) _mediaOverlay.style.pointerEvents = 'auto' }, 600)
+    } else {
+      _mediaOverlay.style.display = 'none'
+    }
+  }
 
   // Video element stays hidden — WebGL VideoTexture reads from it
   if (p.video && vid && srcWebm && srcMp4) {
