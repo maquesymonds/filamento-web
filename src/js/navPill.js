@@ -2,7 +2,7 @@ import gsap                                                        from 'gsap'
 import { CONFIG }                                                 from './config.js'
 import { setAnimationTime, getAnimationTime, getAnimationDuration, getCamera } from './experience.js'
 import { showSectionText, hideSectionText, hideAllSectionText }     from './scroll.js'
-import { jumpScrollTo, stopJourney, restartLoop, releaseApproachFreeze, jumpToContactFromStart } from './journey.js'
+import { jumpScrollTo, stopJourney, restartLoop, releaseApproachFreeze, jumpToContactFromStart, startJourney } from './journey.js'
 import { startJungle }                                            from './audio.js'
 import { resetBeginButton, setIconClickFn, hideHeroText, activateHeroToNav } from './ui.js'
 import { transitionRootsColorBack, transitionPetalColorsBack }    from './materials.js'
@@ -234,10 +234,11 @@ export function initNavPill() {
       cont.innerHTML = `<span>Continue</span>${_ARROW_RIGHT_SVG}`
 
       if (idx === 0) {
-        // Studio → trigger the same journey as clicking "Begin the journey"
+        // Studio → start the camera journey (was previously tied to scroll-hint button)
         cont.addEventListener('click', () => {
           _close()
-          document.getElementById('scroll-hint')?.click()
+          showButterflies(getCamera())
+          startJourney(undefined, () => flyAwayButterflies(getCamera()))
         })
       } else if (s.id === 'process') {
         cont.addEventListener('click', () => {
