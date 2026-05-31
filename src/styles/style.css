@@ -1655,7 +1655,7 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
 
   /* ── Per-project overrides ── */
   #project-panel[data-project="phos"] .project-page-image-wrap {
-    margin: auto 12px;
+    margin: 32vh 12px 0;
   }
 }
 
