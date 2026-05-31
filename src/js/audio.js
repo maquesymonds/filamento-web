@@ -148,23 +148,20 @@ export function initAudio() {
   // Init canvas after the DOM is ready (getBoundingClientRect needs layout)
   requestAnimationFrame(_initWaveIcon)
 
-  // Attempt autoplay — browsers often block this; gesture unlock handles fallback
-  _ambient.play().then(() => {
-    _isOn = true
-    // Don't call _updateIcon here — volume is still 0 until Theatre.js fires
-  }).catch(() => {
-    _isOn = false
-    _updateIcon()
-    _setupGestureUnlock()
-  })
+  // Don't attempt autoplay — browsers block it inconsistently.
+  // Gesture unlock fires on the first user interaction (mouse move, touch, Start click).
+  _setupGestureUnlock()
 }
 
 export async function startAmbient() {
-  if (!_ambient || !_ambient.paused || !_isOn) return
+  if (!_ambient || !_ambient.paused) return
   try {
     await _ambient.play()
-    // _updateIcon called later by Theatre.js onValuesChange once volume is set
-  } catch (_) {}
+    _isOn = true
+    _applyVolumes()
+  } catch (_) {
+    // Blocked — gesture unlock will catch it on first interaction
+  }
 }
 
 export function playGrowing() {
@@ -210,15 +207,18 @@ export function playOnUnlock(src, volume = 1.0) {
 }
 
 function _setupGestureUnlock() {
-  const events     = ['pointermove', 'pointerdown', 'touchstart', 'keydown']
+  const events     = ['pointerdown', 'touchstart', 'click', 'keydown']
   const _onGesture = async (e) => {
     // The sound button owns its own interactions via _toggle / click —
     // skip here so touchstart doesn't race with the click event.
     const btn = document.getElementById('sound-toggle')
     if (btn && btn.contains(e.target)) return
+    if (!_ambient.paused) { _clearGestureUnlock?.(); _clearGestureUnlock = null; return }
     try {
       await _ambient.play()
       _isOn = true
+      _applyVolumes()
+      _updateIcon()
       _clearGestureUnlock?.()
       _clearGestureUnlock = null
       _pendingOneShots.forEach(({ src, volume }) => {
