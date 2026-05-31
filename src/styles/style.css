@@ -1598,22 +1598,25 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     transform: none;
     width: calc(100% - 24px);
     max-width: none;
-    margin: 88px 12px 0;
+    margin: 120px 12px 0;
     order: -1;
     flex-shrink: 0;
   }
 
-  /* "Scroll to close" — overlaid at top of image area */
+  /* "Scroll to close" — hidden on mobile */
   .project-page-hint {
-    top: 96px;
-    left: 50%;
-    transform: translateX(-50%);
+    display: none;
   }
 
   /* Close arrow — tighter position on mobile */
   .project-page-close {
     top: 16px;
     left: 16px;
+  }
+
+  /* Custom cursor label — no hover on mobile */
+  .project-media-cursor {
+    display: none;
   }
 
   /* Text info — frosted glass card pinned to bottom */
