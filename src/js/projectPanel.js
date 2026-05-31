@@ -10,7 +10,7 @@ import { playCircleOpen, playCircleClose }               from './circleTransitio
 import { getRenderer }                                   from './scene.js'
 import { playPixelReveal }                               from './pixelReveal.js'
 import { initProjectBackground, showProjectBackground,
-         hideProjectBackground }                         from './projectBackground.js'
+         hideProjectBackground, refreshImagePosition }   from './projectBackground.js'
 import { initJellyfish, showJellyfish, hideJellyfish }   from './jellyfishBackground.js'
 import { freezeScroll }                                  from './journey.js'
 
@@ -164,6 +164,9 @@ export function openProjectPanel(index, origin, threeCanvas) {
   _panel.style.display  = 'flex'
   _panel.style.opacity  = '1'
   _panel.style.clipPath = ''
+
+  // Re-read image-wrap rect after CSS (including per-project overrides) is applied
+  setTimeout(() => { if (_open) refreshImagePosition() }, 80)
 
   const _wordmark = document.getElementById('brand-wordmark')
   if (_wordmark) gsap.to(_wordmark, { opacity: 0, duration: 0.3, ease: 'power2.in' })

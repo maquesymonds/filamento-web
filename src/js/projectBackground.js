@@ -518,6 +518,10 @@ export function hideProjectBackground() {
 
 export function isProjectBgActive() { return _running }
 
+export function refreshImagePosition() {
+  requestAnimationFrame(() => _repositionImgMesh())
+}
+
 // ── Loop ──────────────────────────────────────────────────────────────────────
 function _startLoop() {
   if (_running) return
