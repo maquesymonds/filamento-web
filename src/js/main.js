@@ -145,12 +145,12 @@ async function boot() {
     }
   }
 
-  // ── 5. PLY point cloud ───────────────────────────────────────────────────
-  await initPointCloud(getScene())
-
-  // ── 5b. GPU particle system ──────────────────────────────────────────────
-  await initParticles(getScene(), getRenderer())
-  await initRaicesParticles(getScene(), getRenderer())
+  // ── 5. PLY + GPU particles — load in parallel ────────────────────────────
+  await Promise.all([
+    initPointCloud(getScene()),
+    initParticles(getScene(), getRenderer()),
+    initRaicesParticles(getScene(), getRenderer()),
+  ])
   initMorphParticles(getScene())
 
   // ── 6. Bloom pipeline ────────────────────────────────────────────────────
