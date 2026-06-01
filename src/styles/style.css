@@ -878,7 +878,7 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 /* "Scroll to close" hint — just above the cover image top edge.
    Image: width 55vw, aspect 16/9 → height = 55vw*(9/16), top edge = 50vh - height/2 */
 .project-page-hint {
-  position: absolute;
+  position: fixed;
   top: calc(50vh - 62vw * 9 / 32 - 24px);
   left: 50%;
   transform: translateX(-50%);
