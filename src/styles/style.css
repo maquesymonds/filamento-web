@@ -435,6 +435,7 @@ body.use-radial-nav #sound-toggle { right: 32px; }
   left: 50%;
   transform: translateX(-50%);
   opacity: 0;
+  visibility: hidden;
   width: min(980px, calc(100vw - 320px));
   padding: 28px 36px;
   background: rgba(0, 0, 0, 0.35);

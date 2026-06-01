@@ -164,7 +164,7 @@ export function showSectionText(sectionId) {
     if (shuffles) {
       shuffles.forEach(ts => { ts._lockWidths(); ts._preScramble() })
     }
-    gsap.set(block, { opacity: 1 })
+    gsap.set(block, { autoAlpha: 1 })
     if (shuffles) {
       shuffles.forEach((ts, i) => setTimeout(() => ts.trigger('fx5'), i * 200))
     }
@@ -195,7 +195,7 @@ export function hideSectionText(sectionId) {
   clearTimeout(_goBackTimers[sectionId])
 
   gsap.killTweensOf(block)
-  gsap.to(block, { opacity: 0, duration: 0.55, ease: 'power2.in' })
+  gsap.to(block, { autoAlpha: 0, duration: 0.55, ease: 'power2.in' })
 
   // Reset nav buttons instantly so they're hidden when section re-appears
   block.querySelectorAll('.go-back-btn, .continue-btn').forEach(b => {

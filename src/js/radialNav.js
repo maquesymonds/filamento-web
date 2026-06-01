@@ -79,7 +79,7 @@ function _jumpTo(sectionId) {
   // fadeout (0.55s) would bleed the old section text through the circle transition.
   document.querySelectorAll('.scroll-text-block').forEach(el => {
     gsap.killTweensOf(el)
-    gsap.set(el, { opacity: 0 })
+    gsap.set(el, { autoAlpha: 0 })
   })
   const _pollenEl = document.getElementById('pollen-text')
   if (_pollenEl) { gsap.killTweensOf(_pollenEl); gsap.set(_pollenEl, { opacity: 0 }) }
