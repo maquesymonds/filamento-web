@@ -420,16 +420,12 @@ function _populate(p) {
   if (hint) {
     hint.style.top  = ''
     hint.style.left = ''
-    const isMobile = window.innerWidth <= 768
-    if (isMobile && p.webUrl) {
-      hint.textContent = 'Click to see project'
-      hint.href        = p.webUrl
-      hint.dataset.hasLink = 'true'
-    } else {
-      hint.textContent = 'Scroll to close'
-      hint.removeAttribute('href')
-      hint.dataset.hasLink = 'false'
-    }
+    // "Click to see project" era el hint de hover de desktop; en mobile no aplica
+    // (no hay hover). Siempre mostramos "Scroll to close". El link al proyecto
+    // está disponible en el botón "Project Link" de la tarjeta de texto.
+    hint.textContent = 'Scroll to close'
+    hint.removeAttribute('href')
+    hint.dataset.hasLink = 'false'
   }
 
   const webLink  = document.getElementById('project-panel-web')

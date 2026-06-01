@@ -4,8 +4,7 @@
 
 import gsap from 'gsap'
 
-const _IS_MOBILE = window.matchMedia('(max-width: 768px)').matches
-const PHRASE  = _IS_MOBILE ? 'CLICK THE POLLEN' : 'PLAY WITH THE POLLEN'
+const PHRASE  = 'PLAY WITH THE POLLEN'
 const RADIUS  = 130   // px — repulsion radius
 const MAX_PUSH = 38   // px — max displacement
 

@@ -39,7 +39,7 @@ export const CONFIG = {
 
   // ── Journey (auto-play, sin scroll) ─────────────────────────
   journey: {
-    autoPlayEndFrame:  258,  // auto-play se detiene aquí → scroll toma el control
+    autoPlayEndFrame:  256,  // auto-play se detiene aquí → scroll toma el control
     endFrame:          249,  // FLOR_GRANDE — chip float se detiene aquí
     duration:          8,    // duración del auto-play en segundos (ease: none = velocidad constante)
     ease:              'none',
@@ -78,17 +78,17 @@ export const CONFIG = {
     studio: {
       heading: 'Studio',
       lines: [
-        'Filamento is a digital studio crafting high-end immersive and interactive web, and 3D experiences where brand, art, and technology converge.',
-        'We partner with brands who understand that digital presence shapes perception, transforming it into something unforgettable because functionality is no longer enough.',
+        'Filamento is a digital studio crafting high-end, immersive web and 3D experiences where brand, art, and technology converge.',
+        'We partner with brands who understand that digital presence shapes perception, transforming it into something unforgettable. Functionality is no longer enough.',
       ],
       mobileLines: [
-        'Filamento is a digital studio creating high-end immersive web and 3D experiences where brand, art, and technology converge. We help brands transform their digital presence into something unforgettable—because functionality alone is no longer enough.',
+        'Filamento is a digital studio crafting high-end, immersive web and 3D experiences where brand, art, and technology converge. We partner with brands who understand that digital presence shapes perception, transforming it into something unforgettable. Functionality is no longer enough.',
       ],
     },
     process: {
       heading: 'Approach',
       lines: [
-        'We create digital spaces meant to be explored by weaving together interaction, motion, sound, and atmosphere. Everything begins as one core idea where design, 3D, and code aren\'t separate phases, but operate seamlessly as a single, unified system.',
+        'We build universes, not landing pages. By merging interaction, motion, sound, and atmosphere, we create digital spaces meant to be explored. Everything begins as one core idea where design, 3D, and code aren\'t separate phases, but operate seamlessly as a single, unified system.',
       ],
     },
     work: {
@@ -109,6 +109,16 @@ export const CONFIG = {
   // ── Background ───────────────────────────────────────────────
   // Color de fondo de la escena Three.js
   backgroundColor: 0x000000,
+
+  // ── Fog (espacio infinito, niebla muy tenue) ─────────────────
+  // El fog desvanece lo lejano hacia su color → sensación de profundidad infinita.
+  // El fondo de la escena se iguala a este color para que el fade sea continuo.
+  // Tuneable en vivo desde el panel Theatre "Fog".
+  fog: {
+    enabled: true,
+    color:   0x03050c,   // azul de espacio profundo, casi negro
+    density: 0.0025,     // muy tenue
+  },
 
   // ── Animaciones UI ───────────────────────────────────────────
   animation: {

@@ -10,6 +10,7 @@ import { CONFIG } from './config.js'
 import { setCamera, setThreeScene, getRenderer } from './scene.js'
 import { applyMaterials, initSemillaPickers } from './materials.js'
 import { sheet } from './theatre.js'
+import { types } from '@theatre/core'
 
 let _scene    = null
 let _mixer    = null
@@ -53,6 +54,32 @@ let _dragRotY      = 0
 export function initExperience(glb) {
   _scene = new THREE.Scene()
   _scene.background = new THREE.Color(CONFIG.backgroundColor)
+
+  // ── Fog: espacio infinito con niebla muy tenue ──────────────────────────────
+  // FogExp2 desvanece lo lejano hacia el color de fondo. El fondo se iguala al
+  // color del fog para que el desvanecimiento sea continuo (sin "pared" de niebla).
+  {
+    const fc = CONFIG.fog?.color ?? 0x03050c
+    const r = ((fc >> 16) & 255) / 255, g = ((fc >> 8) & 255) / 255, b = (fc & 255) / 255
+    const _fogObj = sheet.object('Fog', {
+      activo:   types.boolean(CONFIG.fog?.enabled ?? true),
+      color:    types.rgba({ r, g, b, a: 1 }),
+      densidad: types.number(CONFIG.fog?.density ?? 0.0025, { range: [0, 0.02], nudgeMultiplier: 0.0005 }),
+    })
+    const _applyFog = (v) => {
+      const c = new THREE.Color(v.color.r, v.color.g, v.color.b)
+      if (v.activo) {
+        if (!_scene.fog) _scene.fog = new THREE.FogExp2(c.getHex(), v.densidad)
+        else { _scene.fog.color.copy(c); _scene.fog.density = v.densidad }
+        _scene.background = c
+      } else {
+        _scene.fog = null
+        _scene.background = new THREE.Color(CONFIG.backgroundColor)
+      }
+    }
+    _applyFog(_fogObj.value)
+    _fogObj.onValuesChange(_applyFog)
+  }
 
   // Env map para que iridiscencia y transmisión tengan algo que reflejar
   const pmrem = new THREE.PMREMGenerator(getRenderer())

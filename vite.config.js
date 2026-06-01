@@ -13,12 +13,18 @@ function theatreSavePlugin() {
         req.on('data', chunk => { body += chunk })
         req.on('end', () => {
           try {
+            if (!body || body.trim().length === 0) {
+              throw new Error('cuerpo vacío (no llegó el contenido del estado)')
+            }
             const statePath = resolve(__dirname, 'src/js/state.json')
             writeFileSync(statePath, body, 'utf-8')
+            console.log(`[theatre-save] state.json guardado (${body.length} bytes) OK`)
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ ok: true }))
           } catch (e) {
+            console.error('[theatre-save] ERROR:', e)
             res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ error: String(e) }))
           }
         })

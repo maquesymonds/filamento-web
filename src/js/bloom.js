@@ -12,6 +12,7 @@ import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { types }           from '@theatre/core'
 import { sheet }           from './theatre.js'
+import { setSemillasBloomPass } from './materials.js'
 
 const BLOOM_LAYER = 1
 const _darkMat   = new THREE.MeshBasicMaterial({ color: 0x000000 })
@@ -101,7 +102,9 @@ export function renderBloomToTarget(renderer, scene, camera, target) {
   camera.layers.set(0)
   scene.traverse(_darkenNonBloom)
   _bloomRenderPass.camera = camera
+  setSemillasBloomPass(true)   // semillas: realza el brillo del video en el bloom
   _bloomComposer.render()
+  setSemillasBloomPass(false)
   _restoreMats()
 
   // Pasada 3: composite aditivo encima del target

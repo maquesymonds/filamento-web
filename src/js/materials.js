@@ -873,25 +873,74 @@ movimientoObj.onValuesChange((v) => {
   movimientoUniforms.u_anchorHeight.value = v.anchor_height
 })
 
-// ── Glass normal map (loaded async, applied when ready) ──────────────────────
 
-let _glassNormalTex = null
-new THREE.TextureLoader().load('/textures/glass1.jpg', (tex) => {
-  tex.wrapS = THREE.RepeatWrapping
-  tex.wrapT = THREE.RepeatWrapping
-  _glassNormalTex = tex
-  for (const mat of _semillaMats) {
-    mat.normalMap = tex
-    mat.normalScale.set(_glassNormalScale, _glassNormalScale)
-    mat.needsUpdate = true
+// ── Rectificar la tarjeta a un quad plano ────────────────────────────────────
+// Las semillas del GLB son tarjetas 3D facetadas (cara + bisel + grosor) cuyo
+// contorno proyectado da un "hexágono". Reconstruimos la malla como un quad de
+// 4 vértices tomando las posiciones de las 4 esquinas de UV → rectángulo real.
+function _rectificarSemilla(node, proj) {
+  const g0   = node.geometry
+  const uvA  = g0.attributes.uv
+  const posA = g0.attributes.position
+  if (!uvA || !posA) return
+
+  // bbox de UV
+  let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity
+  for (let i = 0; i < uvA.count; i++) {
+    const u = uvA.getX(i), v = uvA.getY(i)
+    if (u < uMin) uMin = u; if (u > uMax) uMax = u
+    if (v < vMin) vMin = v; if (v > vMax) vMax = v
   }
-})
+  // vértice más cercano a cada esquina de UV
+  const nearest = (tu, tv) => {
+    let bi = 0, bd = Infinity
+    for (let i = 0; i < uvA.count; i++) {
+      const du = uvA.getX(i) - tu, dv = uvA.getY(i) - tv
+      const d = du * du + dv * dv
+      if (d < bd) { bd = d; bi = i }
+    }
+    return bi
+  }
+  const i00 = nearest(uMin, vMin), i10 = nearest(uMax, vMin)
+  const i11 = nearest(uMax, vMax), i01 = nearest(uMin, vMax)
+  const P = (i) => [posA.getX(i), posA.getY(i), posA.getZ(i)]
+  const p00 = P(i00), p10 = P(i10), p11 = P(i11), p01 = P(i01)
 
-// ── Corner SDF injector (rounded rectangle discard, no ripple) ───────────────
+  // Orientación: detecta si X/Y decrecen al crecer U/V (mismo criterio que antes)
+  let flipX = posA.getX(i10) < posA.getX(i00)
+  let flipY = posA.getY(i01) < posA.getY(i00)
+  if (proj.flipTexX) flipX = !flipX
+  if (proj.flipTexY) flipY = !flipY
+  let uv = [[0, 0], [1, 0], [1, 1], [0, 1]]
+  if (flipX) uv = uv.map(([u, v]) => [1 - u, v])
+  if (flipY) uv = uv.map(([u, v]) => [u, 1 - v])
 
-function _inyectarCorners(mat) {
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.BufferAttribute(
+    new Float32Array([...p00, ...p10, ...p11, ...p01]), 3))
+  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv.flat()), 2))
+  // aSemillaUVNorm siempre 0..1 (el SDF de esquinas es simétrico, no necesita flip)
+  g.setAttribute('aSemillaUVNorm', new THREE.BufferAttribute(
+    new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2))
+  g.setIndex([0, 1, 2, 0, 2, 3])
+  g.computeBoundingBox()
+  g.computeBoundingSphere()
+  node.geometry = g
+
+  // Aspecto real (ancho/alto) para el SDF de esquinas — fijo, no por derivadas
+  const w = Math.hypot(p10[0] - p00[0], p10[1] - p00[1], p10[2] - p00[2])
+  const h = Math.hypot(p01[0] - p00[0], p01[1] - p00[1], p01[2] - p00[2])
+  return h > 1e-6 ? w / h : 1
+}
+
+// ── Corner SDF injector — solo redondea esquinas + bloom por contenido ───────
+// La geometría ya viene rectificada a un quad (ver esSemilla), así que NO hay
+// bisel: el shader solo recorta el rectángulo redondeado y, en la pasada de
+// bloom, realza el brillo del video.
+function _inyectarCorners(mat, key, aspect) {
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, _cornerUniforms)
+    shader.uniforms.uAspect = { value: aspect || 1 }
 
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
@@ -908,29 +957,54 @@ function _inyectarCorners(mat) {
       '#include <common>',
       `#include <common>
        uniform float uCornerRadius;
-       varying vec2 vSemillaUVNorm;`,
+       uniform float uAspect;         // ancho/alto fijo (no derivadas → borde recto)
+       uniform float uInBloom;        // 1 durante la pasada de bloom
+       uniform float uBloomEmission;  // intensidad del bloom de las semillas
+       uniform float uBloomThreshold; // piso propio de las semillas (resta a la emisión)
+       varying vec2  vSemillaUVNorm;`,
     ).replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
        {
          vec2  _uv  = vSemillaUVNorm;
          float _r   = uCornerRadius;
-         float _asp = length(dFdy(_uv)) / max(length(dFdx(_uv)), 1e-6);
+         float _asp = uAspect;
          vec2  _p   = (_uv - 0.5) * vec2(_asp, 1.0);
          vec2  _q   = abs(_p) - vec2(_asp * 0.5 - _r, 0.5 - _r);
          float _d   = length(max(_q, 0.0)) + min(max(_q.x, _q.y), 0.0) - _r;
-         if (_d > 0.0) discard;
+         if (_d > 0.0) discard;   // esquinas redondeadas
+
+         // Bloom UNIFORME: toda la cara emite parejo (tinte de la tarjeta ×
+         // intensidad), con un threshold propio (piso) para control fino e
+         // independiente del threshold global del panel "Bloom".
+         if (uInBloom > 0.5) {
+           vec3 _emit = max(diffuse * uBloomEmission - uBloomThreshold, 0.0);
+           gl_FragColor = vec4(_emit, 1.0);
+         }
        }`,
     )
   }
-  mat.customProgramCacheKey = () => 'glass-semillas-corners-v1'
+  mat.customProgramCacheKey = () => 'semillas-flat-v10-' + key
 }
 
 // ── Esquinas redondeadas — GLSL SDF ──────────────────────────────────────────
 
 const _semillaMats    = []
 const _semillaMeshes  = []   // parallel to _semillaMats — for bloom layer toggle
-const _cornerUniforms = { uCornerRadius: { value: 0.06 } }
+const _cornerUniforms = {
+  uCornerRadius:   { value: 0.06 },
+  uInBloom:        { value: 0 },
+  uBloomEmission:  { value: 1.5 },
+  uBloomThreshold: { value: 0 },   // piso propio de las semillas (independiente del global)
+}
+
+// Llamado desde bloom.js para marcar la pasada de bloom de las semillas.
+// En la pasada de bloom desactivamos depthTest: así nada que esté delante
+// (lámpara/vidrio central, renderizado en negro) recorta el bloom de la tarjeta.
+export function setSemillasBloomPass(on) {
+  _cornerUniforms.uInBloom.value = on ? 1 : 0
+  for (const mat of _semillaMats) mat.depthTest = !on
+}
 
 // ── Terrain — direct Theatre.js control (bypasses follow system) ──────────────
 let _terrainMesh = null
@@ -948,41 +1022,67 @@ const _esquinasObj = sheet.object('Semillas Esquinas', {
 _esquinasObj.onValuesChange((v) => { _cornerUniforms.uCornerRadius.value = v.cornerRadius })
 
 // ── Panel Theatre: Glass Semillas ─────────────────────────────────────────────
+// Material plano (MeshBasicMaterial, sin luz): se ve el video tal cual.
+// Solo exponemos opacidad, color (tinte sobre el video) y bloom on/off.
 
-let _glassNormalScale = 0.08
+// Color base del panel y multiplicador de hover por semilla — se componen:
+// color final = base * hoverMul (hoverMul > 1 empuja al bloom).
+const _seedBaseColor = { r: 1, g: 1, b: 1 }
+const _seedHoverMul  = [1, 1, 1, 1]
+// Opacidad base del panel y factor de visibilidad del fade — se componen:
+// opacidad final = base * visFactor.
+let _seedBaseOpacity = 1
+let _seedVisFactor   = 1
+let _seedBloom       = false
+let _seedHoverBoost  = 1.8   // multiplicador de color al pasar el mouse (→ más bloom)
+// En mobile no hay hover: las semillas arrancan con el hoverBoost aplicado por
+// defecto, así florecen igual que en desktop al pasar el mouse.
+const _seedIsMobile  = window.matchMedia('(max-width: 768px)').matches
+// Bloom apenas más bajo en mobile: en vez de tocar la emisión (binario por el
+// umbral global), subimos un poco el threshold propio de las semillas SOLO en
+// mobile → recorta el bloom de forma gradual. 0 = igual que desktop.
+// Se controla desde el panel "Glass Semillas" (bloomThresholdMobile).
+let _seedMobileThresholdAdd = 0.007
+
+function _applySeedColors() {
+  for (let i = 0; i < _semillaMats.length; i++) {
+    const idx = _semillaMeshes[i]?.userData.semillaIndex ?? 0
+    const mul = _seedIsMobile ? _seedHoverBoost : (_seedHoverMul[idx] ?? 1)
+    _semillaMats[i].color.setRGB(
+      _seedBaseColor.r * mul,
+      _seedBaseColor.g * mul,
+      _seedBaseColor.b * mul,
+    )
+  }
+}
+
+function _applySeedOpacity() {
+  const o = _seedBaseOpacity * _seedVisFactor
+  for (const mat of _semillaMats) mat.opacity = o
+}
 
 const _glassObj = sheet.object('Glass Semillas', {
-  transmission:        types.number(0.0,  { range: [0, 1],    nudgeMultiplier: 0.01 }),
-  roughness:           types.number(0.0,  { range: [0, 1],    nudgeMultiplier: 0.01 }),
-  thickness:           types.number(0.5,  { range: [0, 5],    nudgeMultiplier: 0.05 }),
-  ior:                 types.number(1.5,  { range: [1, 2.5],  nudgeMultiplier: 0.01 }),
-  normalScale:         types.number(0.08, { range: [0, 0.5],  nudgeMultiplier: 0.005 }),
-  emissiveIntensity:   types.number(1.2,  { range: [0, 5],    nudgeMultiplier: 0.05 }),
-  envMapIntensity:     types.number(1.0,  { range: [0, 5],    nudgeMultiplier: 0.05 }),
-  color:               types.rgba({ r: 1, g: 1, b: 1, a: 1 }),
-  iridescence:         types.number(1.0,  { range: [0, 1],    nudgeMultiplier: 0.01 }),
-  iridescenceIOR:      types.number(1.5,  { range: [1, 2.5],  nudgeMultiplier: 0.01 }),
-  iridescenceThickMin: types.number(100,  { range: [0, 1000], nudgeMultiplier: 5    }),
-  iridescenceThickMax: types.number(400,  { range: [0, 1000], nudgeMultiplier: 5    }),
-  bloom:               types.boolean(false),
-})
+  opacity:        types.number(1.0, { range: [0, 1],   nudgeMultiplier: 0.01 }),
+  color:          types.rgba({ r: 1, g: 1, b: 1, a: 1 }),
+  bloom:          types.boolean(false),
+  bloomEmission:       types.number(1.5,  { range: [0, 8], nudgeMultiplier: 0.1 }),
+  bloomThreshold:      types.number(0.0,  { range: [0, 2], nudgeMultiplier: 0.02 }),
+  bloomThresholdMobile: types.number(0.007, { range: [0, 2], nudgeMultiplier: 0.005 }),  // piso extra SOLO en mobile
+  hoverBoost:          types.number(1.8,  { range: [1, 5], nudgeMultiplier: 0.05 }),
+}, { reconfigure: true })
 
 _glassObj.onValuesChange((v) => {
-  _glassNormalScale = v.normalScale
-  for (const mat of _semillaMats) {
-    mat.transmission               = v.transmission
-    mat.roughness                  = v.roughness
-    mat.thickness                  = v.thickness
-    mat.ior                        = v.ior
-    mat.color.setRGB(v.color.r, v.color.g, v.color.b)
-    mat.emissiveIntensity          = v.emissiveIntensity
-    mat.envMapIntensity            = v.envMapIntensity
-    mat.iridescence                = v.iridescence
-    mat.iridescenceIOR             = v.iridescenceIOR
-    mat.iridescenceThicknessRange  = [v.iridescenceThickMin, v.iridescenceThickMax]
-    if (mat.normalMap) mat.normalScale.set(v.normalScale, v.normalScale)
-    mat.needsUpdate = true
-  }
+  _seedBaseColor.r = v.color.r
+  _seedBaseColor.g = v.color.g
+  _seedBaseColor.b = v.color.b
+  _seedBaseOpacity = v.opacity
+  _seedBloom       = v.bloom
+  _seedMobileThresholdAdd = v.bloomThresholdMobile
+  _cornerUniforms.uBloomEmission.value  = v.bloomEmission
+  _cornerUniforms.uBloomThreshold.value = v.bloomThreshold + (_seedIsMobile ? _seedMobileThresholdAdd : 0)
+  _seedHoverBoost = v.hoverBoost
+  _applySeedColors()
+  _applySeedOpacity()
   for (const mesh of _semillaMeshes) {
     if (v.bloom) mesh.layers.enable(BLOOM_LAYER)
     else         mesh.layers.disable(BLOOM_LAYER)
@@ -1166,80 +1266,41 @@ export function applyMaterials(gltfScene) {
       const _idx  = node.userData.semillaIndex ?? 0
       const _proj = CONFIG.projects[_idx] ?? CONFIG.projects[0]
 
-      // ── Glass material properties ─────────────────────────────────
-      nuevo.transmission               = 0.0
-      nuevo.roughness                  = 0.0
-      nuevo.thickness                  = 0.5
-      nuevo.ior                        = 1.5
-      nuevo.metalness                  = 0.0
-      nuevo.emissive                   = new THREE.Color(0xffffff)
-      nuevo.emissiveIntensity          = 1.2
-      nuevo.envMapIntensity            = 1.0
-      nuevo.iridescence                = 1.0
-      nuevo.iridescenceIOR             = 1.5
-      nuevo.iridescenceThicknessRange  = [100, 400]
-      const _vidTex           = _videoTexPerSemilla[_idx] ?? null
-      nuevo.map               = _vidTex ?? _texPerSemilla[_idx] ?? _texPerSemilla[0]
-      // Video glows from within — use same texture for emissive so it looks self-illuminated
-      nuevo.emissiveMap       = _vidTex ?? _emisPerSemilla[_idx] ?? _emisPerSemilla[0]
-      if (_glassNormalTex) {
-        nuevo.normalMap = _glassNormalTex
-        nuevo.normalScale.set(_glassNormalScale, _glassNormalScale)
-      }
-      nuevo.side        = THREE.FrontSide
-      nuevo.depthWrite  = true
+      // ── Material plano: solo el video (sin luz, sin reflejos, sin vidrio) ──
+      // El video se ve tal cual; opacidad/color/bloom se controlan en el panel.
+      const _vidTex = _videoTexPerSemilla[_idx] ?? _texPerSemilla[_idx] ?? _texPerSemilla[0]
+      const _initMul = _seedIsMobile ? _seedHoverBoost : 1   // mobile: arranca con boost (sin hover)
+      const seedMat = new THREE.MeshBasicMaterial({
+        map:         _vidTex,
+        color:       new THREE.Color(_seedBaseColor.r * _initMul, _seedBaseColor.g * _initMul, _seedBaseColor.b * _initMul),
+        transparent: true,   // siempre: deja que el panel maneje opacity en vivo
+        opacity:     _seedBaseOpacity * _seedVisFactor,
+        side:        THREE.DoubleSide,  // quad plano: visible de ambos lados
+        depthWrite:  true,
+      })
+      const nuevo = seedMat   // resto del bloque opera sobre el material plano
 
       // Polygon offset prevents Z-fighting between co-planar cards
       nuevo.polygonOffset       = true
       nuevo.polygonOffsetFactor = -(_idx + 1)
       nuevo.polygonOffsetUnits  = -(_idx + 1)
 
-      // UV flip detection + normalized UV attribute for corner SDF
-      const _uvAttr  = node.geometry.attributes.uv
-      const _posAttr = node.geometry.attributes.position
-      if (_uvAttr) {
-        let _uMin = Infinity, _uMax = -Infinity, _vMin = Infinity, _vMax = -Infinity
-        let _uMinI = 0, _uMaxI = 0, _vMinI = 0, _vMaxI = 0
-        for (let _i = 0; _i < _uvAttr.count; _i++) {
-          const _u = _uvAttr.getX(_i), _v = _uvAttr.getY(_i)
-          if (_u < _uMin) { _uMin = _u; _uMinI = _i }
-          if (_u > _uMax) { _uMax = _u; _uMaxI = _i }
-          if (_v < _vMin) { _vMin = _v; _vMinI = _i }
-          if (_v > _vMax) { _vMax = _v; _vMaxI = _i }
-        }
-        let _flipX = false, _flipY = false
-        if (_posAttr) {
-          _flipX = _posAttr.getX(_uMaxI) < _posAttr.getX(_uMinI)
-          _flipY = _posAttr.getY(_vMaxI) < _posAttr.getY(_vMinI)
-        }
-        if (_proj.flipTexX) _flipX = !_flipX
-        if (_proj.flipTexY) _flipY = !_flipY
-        _drawSemillaCanvas(_idx, _proj)
-        const _uR = Math.max(_uMax - _uMin, 1e-6)
-        const _vR = Math.max(_vMax - _vMin, 1e-6)
-        const _norm = new Float32Array(_uvAttr.count * 2)
-        for (let _i = 0; _i < _uvAttr.count; _i++) {
-          _norm[_i * 2]     = (_uvAttr.getX(_i) - _uMin) / _uR
-          _norm[_i * 2 + 1] = (_uvAttr.getY(_i) - _vMin) / _vR
-        }
-        node.geometry.setAttribute('aSemillaUVNorm', new THREE.BufferAttribute(_norm, 2))
-        const _repX = _flipX ? -1 / _uR :  1 / _uR
-        const _offX = _flipX ?  _uMax / _uR : -_uMin / _uR
-        const _repY = _flipY ? -1 / _vR :  1 / _vR
-        const _offY = _flipY ?  _vMax / _vR : -_vMin / _vR
-        for (const _tex of [nuevo.map, nuevo.emissiveMap]) {
-          if (_tex) { _tex.repeat.set(_repX, _repY); _tex.offset.set(_offX, _offY) }
-        }
-        _semillaBaseOffset[_idx] = { x: _offX, y: _offY }
-        node.userData.uvCenter = new THREE.Vector2((_uMin + _uMax) / 2, (_vMin + _vMax) / 2)
-      }
+      // Reconstruye la tarjeta como un QUAD plano (rectángulo real) usando las 4
+      // esquinas de UV de la malla original → imposible que dé bisel/hexágono.
+      const _aspect = _rectificarSemilla(node, _proj)
+      _drawSemillaCanvas(_idx, _proj)
+      _vidTex.repeat.set(1, 1)
+      _vidTex.offset.set(0, 0)
+      _semillaBaseOffset[_idx] = { x: 0, y: 0 }
 
       _semillaMats.push(nuevo)
       _semillaMeshes.push(node)
-      _inyectarCorners(nuevo)
+      _inyectarCorners(nuevo, _idx, _aspect)
       meshesSemillasArr.push(node)
       node.material = nuevo
-      return  // skip generic follow() — glass has its own Theatre panel
+      if (_seedBloom) node.layers.enable(BLOOM_LAYER)
+      else            node.layers.disable(BLOOM_LAYER)
+      return  // skip generic follow() — el panel "Glass Semillas" lo maneja
     }
 
     node.material = nuevo
@@ -1393,26 +1454,18 @@ const _semillaHoverTweens = []  // [idx] = active GSAP tween (or null)
 
 export function semillaHoverEnter(idx) {
   if (_semillaHoverTweens[idx]) _semillaHoverTweens[idx].kill()
-  const mats = _semillaMats.filter((_, i) => _semillaMeshes[i]?.userData.semillaIndex === idx)
-  if (!mats.length) return
-  const proxy = { emissive: mats[0].emissiveIntensity, thickMax: mats[0].iridescenceThicknessRange[1] }
+  // Brillo en hover: empuja el color > 1 para que florezca con el bloom.
+  const proxy = { mul: _seedHoverMul[idx] ?? 1 }
   _semillaHoverTweens[idx] = gsap.to(proxy, {
-    emissive: 2.8, thickMax: 800,
+    mul: _seedHoverBoost,
     duration: 0.35, ease: 'power2.out',
-    onUpdate() {
-      for (const m of mats) {
-        m.emissiveIntensity = proxy.emissive
-        m.iridescenceThicknessRange = [m.iridescenceThicknessRange[0], proxy.thickMax]
-      }
-    },
+    onUpdate() { _seedHoverMul[idx] = proxy.mul; _applySeedColors() },
     onComplete() { _semillaHoverTweens[idx] = null },
   })
 }
 
 export function semillaHoverLeave(idx) {
   if (_semillaHoverTweens[idx]) _semillaHoverTweens[idx].kill()
-  const mats = _semillaMats.filter((_, i) => _semillaMeshes[i]?.userData.semillaIndex === idx)
-  if (!mats.length) return
   // Snap UV tilt back to base immediately
   const base = _semillaBaseOffset[idx]
   if (base) {
@@ -1424,16 +1477,11 @@ export function semillaHoverLeave(idx) {
       if (_emisPerSemilla[idx]) _emisPerSemilla[idx].offset.set(base.x, base.y)
     }
   }
-  const proxy = { emissive: mats[0].emissiveIntensity, thickMax: mats[0].iridescenceThicknessRange[1] }
+  const proxy = { mul: _seedHoverMul[idx] ?? 1 }
   _semillaHoverTweens[idx] = gsap.to(proxy, {
-    emissive: 1.2, thickMax: 400,
+    mul: 1.0,
     duration: 0.55, ease: 'power2.inOut',
-    onUpdate() {
-      for (const m of mats) {
-        m.emissiveIntensity = proxy.emissive
-        m.iridescenceThicknessRange = [m.iridescenceThicknessRange[0], proxy.thickMax]
-      }
-    },
+    onUpdate() { _seedHoverMul[idx] = proxy.mul; _applySeedColors() },
     onComplete() { _semillaHoverTweens[idx] = null },
   })
 }
@@ -1443,45 +1491,34 @@ let _semillaFadeTween = null
 export function setSemillasVisible(visible, duration = 0.7) {
   if (_semillaFadeTween) { _semillaFadeTween.kill(); _semillaFadeTween = null }
 
-  // Collect actual material instances directly from the meshes
-  const _allMats = []
-  _semillaMeshes.forEach(m => {
-    if (!m) return
-    const arr = Array.isArray(m.material) ? m.material : [m.material]
-    arr.forEach(mt => { if (mt && !_allMats.includes(mt)) _allMats.push(mt) })
-  })
-
-  // Enable transparency on all mats before tweening (needsUpdate required for this change)
-  _allMats.forEach(mt => {
-    if (!mt.transparent) { mt.transparent = true; mt.needsUpdate = true }
-  })
-
   if (visible) {
     _semillaMeshes.forEach(m => { if (m) m.visible = true })
     semillaPickerMeshes.forEach(m => { if (m) m.visible = true })
   }
 
-  const startOpacity = _allMats[0]?.opacity ?? (visible ? 0 : 1)
-  const proxy = { v: startOpacity }
+  // Tween el factor de visibilidad (0..1). La opacidad final es base*vis,
+  // así no pisamos la opacidad que el usuario fija en el panel.
+  const proxy = { v: _seedVisFactor }
 
   _semillaFadeTween = gsap.to(proxy, {
     v:        visible ? 1 : 0,
     duration,
     ease:     visible ? 'power2.out' : 'power2.in',
-    onUpdate() {
-      _allMats.forEach(mt => { mt.opacity = proxy.v })
-    },
+    onUpdate() { _seedVisFactor = proxy.v; _applySeedOpacity() },
     onComplete() {
       if (!visible) {
         _semillaMeshes.forEach(m => { if (m) m.visible = false })
         semillaPickerMeshes.forEach(m => { if (m) m.visible = false })
-        _allMats.forEach(mt => { mt.opacity = 0 })
-      } else {
-        _allMats.forEach(mt => { mt.transparent = false; mt.needsUpdate = true; mt.opacity = 1 })
       }
+      _semillaVisFactorSettle(visible)
       _semillaFadeTween = null
     },
   })
+}
+
+function _semillaVisFactorSettle(visible) {
+  _seedVisFactor = visible ? 1 : 0
+  _applySeedOpacity()
 }
 
 export function semillaSetTilt(idx, nx, ny) {

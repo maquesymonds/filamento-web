@@ -39,6 +39,7 @@ import { initSoundTimeline, markUserSound } from './soundTimeline.js'
 import { initCircleTransition } from './circleTransition.js'
 import { initPollenText } from './pollenText.js'
 import { initButterflies, showButterflies, hideButterflies, tickButterflies, flyAwayButterflies } from './butterflies.js'
+import { initDustLayers, tickDustLayers } from './dustLayers.js'
 import { initIntroLoader, resolveLoader }                   from './introLoader.js'
 import { sheet }                                                 from './theatre.js'
 import { types }                                                 from '@theatre/core'
@@ -152,6 +153,7 @@ async function boot() {
     initRaicesParticles(getScene(), getRenderer()),
   ])
   initMorphParticles(getScene())
+  initDustLayers(getScene())
 
   // ── 6. Bloom pipeline ────────────────────────────────────────────────────
   initBloom(getRenderer(), getScene())
@@ -206,7 +208,8 @@ async function boot() {
   initNavPill()
   initRadialNav() // RADIAL NAV EXPERIMENT — active when <body class="use-radial-nav">
   initPollenText()
-  setupBeginButton(() => {
+  setupBeginButton(async () => {
+    await startAmbient()   // tap on Start IS the user gesture — unlocks audio on mobile before jungle tries to play
     startJungle()
     showSectionText('studio')
     transitionRootsColor(CONFIG.intro.duration, CONFIG.intro.ease)
@@ -389,7 +392,7 @@ async function boot() {
     // ── Filament Stretch: ramp-in 215→232, hold 232→260, top-to-bottom wipe 250→260
     const _filFps  = CONFIG.scroll.totalFrames / (getAnimationDuration() || 1)
     const _filFr   = Math.max(Math.round(getAnimationTime() * _filFps), getScrollFrame())
-    const _FS = 211, _FM = 228, _FE = 256, _WS = 246
+    const _FS = 211, _FM = 228, _FE = 252, _WS = 244
     let _filProg = 0, _wipeY = 0
     if (_filFr >= _FS && _filFr <= _FE) {
       _filProg = _filFr <= _FM
@@ -420,6 +423,7 @@ async function boot() {
       tickMorphParticles(elapsed, dt)
       tickRipple(_mouseHover, _mouseActive, cam)
       tickButterflies(elapsed, dt, cam)
+      tickDustLayers(elapsed, dt, cam)
 
       // Semilla hover — glow, iridescence burst, UV parallax tilt, custom cursor
       const _contactNow = parseFloat(document.getElementById('text-contact')?.style.opacity) === 1

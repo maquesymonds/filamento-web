@@ -1581,20 +1581,22 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     overflow: hidden;
   }
 
-  /* column-reverse: DOM order (info, video) flips visually to (video top, info bottom) */
+  /* Stack anclado abajo (justify-content: flex-end): video + texto pegados al
+     fondo, el espacio libre queda arriba. Orden visual (con `order`): video → texto. */
   .project-page-content {
     position: absolute;
     inset: 0;
     display: flex;
-    flex-direction: column-reverse;
-    justify-content: flex-start;
+    flex-direction: column;
+    justify-content: flex-end;
     width: 100%;
     max-height: none;
     gap: 0;
     align-items: stretch;
   }
 
-  /* Image card — sits just above the info card, no order tricks needed */
+  /* Video — pegado justo arriba del texto con un espacio fijo (margin-bottom).
+     El stack se ancla abajo vía justify-content: flex-end del contenedor. */
   .project-page-image-wrap {
     position: relative;
     left: auto;
@@ -1602,29 +1604,23 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     transform: none;
     width: calc(100% - 24px);
     max-width: none;
-    margin: 0 12px 8px;
+    margin: 0 12px 36px;   /* separación video ↔ texto (ajustable) */
+    order: 1;
     flex-shrink: 0;
   }
 
-  /* "Scroll to close" — hidden on mobile by default */
+  /* "Scroll to close" — hint fijo arriba al centro (fuera del flujo, no afecta
+     el centrado del video). En mobile no hay hover → no se usa el cursor. */
   .project-page-hint {
-    display: none;
-  }
-
-  /* "Click to see project" — flex item that sits just above the video in column-reverse */
-  #project-panel[data-project] .project-page-hint[data-has-link="true"] {
     display: block;
-    position: relative;
-    width: 100%;
-    flex-shrink: 0;
-    font-size: 11px;
-    letter-spacing: 0.22em;
-    color: rgba(255, 255, 255, 0.55);
-    text-decoration: none;
-    pointer-events: auto;
-    white-space: nowrap;
+    position: fixed;
+    top: 44px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
     text-align: center;
-    padding-bottom: 6px;
+    pointer-events: none;
+    z-index: 6;
   }
 
   /* Close arrow — tighter position on mobile */
@@ -1647,8 +1643,9 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     -webkit-backdrop-filter: blur(18px);
     border-radius: 16px;
     padding: 24px 20px 40px;
-    margin: 0 12px 24px;
+    margin: 0 12px 24px;   /* el video (margin-top:auto) ancla el bloque abajo */
     gap: 12px;
+    order: 2;
   }
 
 }

@@ -25,6 +25,8 @@ let _attract    = 0.004
 let _velLimit   = 0.10
 let _scaleMult  = 1.0
 let _mobileMult = 1.0
+let _spreadH    = 1.0   // factor de dispersión horizontal (más chico en mobile)
+let _spreadV    = 1.0   // factor de dispersión vertical
 let _flapMult   = 0.45
 let _targetDist = 18
 let _driftAmp   = 3.5
@@ -222,8 +224,8 @@ class Butterfly {
     this.rw.rotation.y = -wr
 
     // Personal target = shared target + unique sinusoidal offset in camera space
-    const ox = Math.sin(elapsed * this.wFreq       + this.wPhase)        * this.wAmpH
-    const oy = Math.cos(elapsed * this.wFreq * 0.7 + this.wPhase + 1.57) * this.wAmpV
+    const ox = Math.sin(elapsed * this.wFreq       + this.wPhase)        * this.wAmpH * _spreadH
+    const oy = Math.cos(elapsed * this.wFreq * 0.7 + this.wPhase + 1.57) * this.wAmpV * _spreadV
     _pTgt.copy(sharedTarget)
       .addScaledVector(camRight, ox)
       .addScaledVector(camUp,    oy)
@@ -292,7 +294,12 @@ function _initTheatre() {
 
 export function initButterflies(scene) {
   _scene = scene
-  _mobileMult = window.innerWidth <= 768 ? 0.45 : 0.55
+  const isMobile = window.innerWidth <= 768
+  // En mobile: más grandes y MENOS dispersas a lo ancho (la pantalla es angosta
+  // y vertical), así entran más mariposas en cuadro en vez de irse de los lados.
+  _mobileMult = isMobile ? 0.75 : 0.55
+  _spreadH    = isMobile ? 0.40 : 1.0
+  _spreadV    = isMobile ? 0.75 : 1.0
   for (let i = 0; i < MAX_COUNT; i++) {
     const b = new Butterfly()
     _butterflies.push(b)
@@ -392,8 +399,8 @@ export function tickButterflies(elapsed, dt, camera) {
   // _state === 'active': normal camera-follow behaviour
   // Shared anchor: a point in front of the camera, with gentle group drift
   _rawTgt.copy(camera.position).addScaledVector(_camDir, _targetDist)
-  _rawTgt.addScaledVector(_right, Math.sin(elapsed * 0.28) * _driftAmp * 0.3)
-  _rawTgt.addScaledVector(_up,    Math.sin(elapsed * 0.19) * _driftAmp * 0.2)
+  _rawTgt.addScaledVector(_right, Math.sin(elapsed * 0.28) * _driftAmp * 0.3 * _spreadH)
+  _rawTgt.addScaledVector(_up,    Math.sin(elapsed * 0.19) * _driftAmp * 0.2 * _spreadV)
 
   _smooth.lerp(_rawTgt, _lerpSpeed)
 
