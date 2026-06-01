@@ -155,6 +155,7 @@ export function openProjectPanel(index, origin, threeCanvas) {
   if (!project) return
 
   _lastOrigin = origin ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+  document.body.classList.add('project-open')
   _populate(project)
   _hideTextElements()
   showProjectBackground(project.image || '', project.bgImage || project.image || '', project.bgTint, project.video || null)
@@ -191,6 +192,7 @@ export function openProjectPanel(index, origin, threeCanvas) {
 export function closeProjectPanel() {
   if (!_panel || !_open) return
   _open = false
+  document.body.classList.remove('project-open')
   freezeScroll(900)   // block journey wheel for 900ms so panel-close scroll doesn't bleed
   if (_mediaCursor)  _mediaCursor.classList.remove('visible')
   if (_mediaOverlay) _mediaOverlay.style.display = 'none'
@@ -416,7 +418,10 @@ function _populate(p) {
 
   const hint = document.getElementById('project-panel-hint')
   if (hint) {
-    if (p.webUrl) {
+    hint.style.top  = ''
+    hint.style.left = ''
+    const isMobile = window.innerWidth <= 768
+    if (isMobile && p.webUrl) {
       hint.textContent = 'Click to see project'
       hint.href        = p.webUrl
       hint.dataset.hasLink = 'true'

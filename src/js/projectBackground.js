@@ -521,19 +521,7 @@ export function isProjectBgActive() { return _running }
 export function refreshImagePosition() {
   requestAnimationFrame(() => {
     _repositionImgMesh()
-    _repositionHint()
   })
-}
-
-function _repositionHint() {
-  if (window.innerWidth > 768) return
-  const wrap = document.getElementById('project-panel-image-wrap')
-  const hint = document.getElementById('project-panel-hint')
-  if (!wrap || !hint || hint.dataset.hasLink !== 'true') return
-  const rect = wrap.getBoundingClientRect()
-  if (rect.top === 0 && rect.height === 0) return  // layout not ready yet
-  hint.style.top  = `${rect.top - 26}px`
-  hint.style.left = `${rect.left + rect.width / 2}px`
 }
 
 // ── Loop ──────────────────────────────────────────────────────────────────────
