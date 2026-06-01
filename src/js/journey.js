@@ -156,9 +156,9 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     _scrollFrame  = Math.max(0, Math.min(Math.round(scroll * fps), scrollEndFr))
   }
 
-  _workTimeout    = null
-  _studioTimeout  = null
-  _processTimeout = null
+  clearTimeout(_workTimeout);    _workTimeout    = null
+  clearTimeout(_studioTimeout);  _studioTimeout  = null
+  clearTimeout(_processTimeout); _processTimeout = null
 
   const onWheel = (e) => {
     // Kill auto-play tween if running — user takes manual control
@@ -320,6 +320,10 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
 
       // Reset scene before snapshot so canvas still shows frame 359 (not rendered yet)
       // but the mixer is already at 0 — inner circle will reveal the beginning state
+      clearTimeout(_workTimeout);    _workTimeout    = null
+      clearTimeout(_studioTimeout);  _studioTimeout  = null
+      clearTimeout(_processTimeout); _processTimeout = null
+
       resetAnimations()     // resets LoopOnce actions + mixer to t=0 (identical to first load)
       resetRootsColor()     // snap color pulse back to initial green before circle opens
       _scrollFrame = 0      // reset counter so it goes back to 000
