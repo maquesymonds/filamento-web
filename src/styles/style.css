@@ -892,7 +892,7 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 }
 
 .project-page-close {
-  position: fixed;
+  position: absolute;
   top: 124px;
   left: 72px;
   background: none;
