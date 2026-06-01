@@ -893,8 +893,8 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 
 .project-page-close {
   position: absolute;
-  top: 124px;
-  left: 72px;
+  top: 40px;
+  left: 56px;
   background: none;
   border: none;
   cursor: pointer;
@@ -1622,7 +1622,7 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
 
   /* Close arrow — tighter position on mobile */
   .project-page-close {
-    top: 24px;
+    top: 38px;
     left: 24px;
   }
 

@@ -35,11 +35,11 @@ export function initProjectPanel() {
   const _closeBtn = document.getElementById('project-panel-close')
   if (_closeBtn) _closeBtn.addEventListener('click', () => { if (_open) closeProjectPanel() })
 
-  // ── Mobile swipe-left to close ────────────────────────────────────────────
-  // Listeners on window so child elements don't block the events.
+  // ── Mobile swipe-right to close (iOS back gesture) ───────────────────────
+  // Panel follows the finger; past 35% of screen width → slides off to the right.
   let _swipeStartX   = null
   let _swipeStartY   = null
-  let _swipeTracking = false   // true once horizontal dominance confirmed
+  let _swipeTracking = false
 
   window.addEventListener('touchstart', (e) => {
     if (!_open) return
@@ -55,10 +55,10 @@ export function initProjectPanel() {
     if (!_swipeTracking && Math.abs(dx) > 8) {
       _swipeTracking = Math.abs(dx) > Math.abs(dy)
     }
-    if (_swipeTracking && dx < 0) {
+    if (_swipeTracking && dx > 0) {
       _panel.style.transition = 'none'
       _panel.style.transform  = `translateX(${dx}px)`
-      _panel.style.opacity    = String(Math.max(0, 1 + dx / (window.innerWidth * 0.55)))
+      _panel.style.opacity    = String(Math.max(0, 1 - dx / (window.innerWidth * 0.6)))
     }
   }, { passive: true })
 
@@ -69,8 +69,8 @@ export function initProjectPanel() {
     _swipeStartX   = null
     _swipeTracking = false
 
-    if (tracking && dx < -70) {
-      // Commit — slide off then clean up (skip circle transition for swipe)
+    if (tracking && dx > window.innerWidth * 0.35) {
+      // Commit — slide off to the right
       _open = false
       freezeScroll(900)
       if (_mediaCursor)  _mediaCursor.classList.remove('visible')
@@ -80,22 +80,22 @@ export function initProjectPanel() {
       const vid = document.getElementById('project-panel-video')
       if (vid) { vid.pause(); vid.currentTime = 0 }
       const _wordmark = document.getElementById('brand-wordmark')
-      if (_wordmark) gsap.to(_wordmark, { opacity: 0.7, duration: 0.4, delay: 0.15, ease: 'power2.out' })
+      if (_wordmark) gsap.to(_wordmark, { opacity: 0.7, duration: 0.4, delay: 0.1, ease: 'power2.out' })
       const _icon = document.getElementById('brand-icon')
       if (_icon && _icon.classList.contains('is-visible')) {
-        gsap.to(_icon, { opacity: 0.9, duration: 0.4, delay: 0.15, ease: 'power2.out', onStart: () => { _icon.style.pointerEvents = 'auto' } })
+        gsap.to(_icon, { opacity: 0.9, duration: 0.4, delay: 0.1, ease: 'power2.out', onStart: () => { _icon.style.pointerEvents = 'auto' } })
       }
       gsap.to(_panel, {
-        x: -window.innerWidth, opacity: 0, duration: 0.22, ease: 'power2.in',
+        x: window.innerWidth, opacity: 0, duration: 0.28, ease: 'power2.in',
         onComplete() {
           _panel.style.display = 'none'
           gsap.set(_panel, { clearProps: 'x,opacity,transform,transition' })
         },
       })
     } else {
-      // Cancel — snap back
+      // Cancel — snap back with bounce
       gsap.to(_panel, {
-        x: 0, opacity: 1, duration: 0.38, ease: 'back.out(1.8)',
+        x: 0, opacity: 1, duration: 0.4, ease: 'back.out(1.8)',
         onComplete() { _panel.style.transform = ''; _panel.style.opacity = ''; _panel.style.transition = '' },
       })
     }
