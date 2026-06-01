@@ -377,6 +377,11 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     }
   }
 
+  // Remove OLD listeners BEFORE reassigning — otherwise removeEventListener gets the new fn
+  if (_activeTouchStart) window.removeEventListener('touchstart', _activeTouchStart)
+  if (_activeTouchMove)  window.removeEventListener('touchmove',  _activeTouchMove)
+  if (_activeTouchEnd)   window.removeEventListener('touchend',   _activeTouchEnd)
+
   _activeTouchStart = (e) => {
     if (e.target.closest('#pollen-text')) return
     _stopInertia()
@@ -399,9 +404,6 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     if (Math.abs(_touchVel) > 1) _inertiaRafId = requestAnimationFrame(_runInertia)
   }
 
-  if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart) }
-  if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove)  }
-  if (_activeTouchEnd)   { window.removeEventListener('touchend',   _activeTouchEnd)   }
   window.addEventListener('touchstart', _activeTouchStart, { passive: true })
   window.addEventListener('touchmove',  _activeTouchMove,  { passive: true })
   window.addEventListener('touchend',   _activeTouchEnd,   { passive: true })
