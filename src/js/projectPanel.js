@@ -165,13 +165,10 @@ export function openProjectPanel(index, origin, threeCanvas) {
   _panel.style.opacity  = '1'
   _panel.style.clipPath = ''
 
-  // Per-project mobile video position — set inline so it beats CSS timing issues
+  // Set marginTop inline so WebGL mesh repositions correctly before CSS layout settles
   const _imgWrap = document.getElementById('project-panel-image-wrap')
   if (_imgWrap) {
-    const _isMobile = window.innerWidth <= 768
-    const _slug     = _panel.dataset.project
-    const _mobileOffsets = { 'phos': '34vh' }
-    _imgWrap.style.marginTop = (_isMobile && _mobileOffsets[_slug]) ? _mobileOffsets[_slug] : ''
+    _imgWrap.style.marginTop = window.innerWidth <= 768 ? '34vh' : ''
   }
 
   // Re-read image-wrap rect after layout is applied
