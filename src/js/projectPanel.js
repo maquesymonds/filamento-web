@@ -165,7 +165,16 @@ export function openProjectPanel(index, origin, threeCanvas) {
   _panel.style.opacity  = '1'
   _panel.style.clipPath = ''
 
-  // Re-read image-wrap rect after CSS (including per-project overrides) is applied
+  // Per-project mobile video position — set inline so it beats CSS timing issues
+  const _imgWrap = document.getElementById('project-panel-image-wrap')
+  if (_imgWrap) {
+    const _isMobile = window.innerWidth <= 768
+    const _slug     = _panel.dataset.project
+    const _mobileOffsets = { 'phos': '34vh' }
+    _imgWrap.style.marginTop = (_isMobile && _mobileOffsets[_slug]) ? _mobileOffsets[_slug] : ''
+  }
+
+  // Re-read image-wrap rect after layout is applied
   setTimeout(() => { if (_open) refreshImagePosition() }, 80)
 
   const _wordmark = document.getElementById('brand-wordmark')
