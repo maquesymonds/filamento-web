@@ -1586,7 +1586,7 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     align-items: stretch;
   }
 
-  /* Image card — centered vertically */
+  /* Image card — pushed down with auto margin so it always sits just above the info card */
   .project-page-image-wrap {
     position: relative;
     left: auto;
@@ -1594,7 +1594,7 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     transform: none;
     width: calc(100% - 24px);
     max-width: none;
-    margin: 34vh 12px 0;
+    margin: auto 12px 8px;
     order: -1;
     flex-shrink: 0;
   }
@@ -1604,14 +1604,10 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     display: none;
   }
 
-  /* "Click to see project" — absolute, right above the video */
+  /* "Click to see project" — positioned by JS just above the portada */
   #project-panel[data-project] .project-page-hint[data-has-link="true"] {
     display: block;
     position: absolute;
-    top: calc(34vh - 28px);
-    left: 50%;
-    transform: translateX(-50%);
-    margin: 0;
     font-size: 11px;
     letter-spacing: 0.22em;
     color: rgba(255, 255, 255, 0.55);
@@ -1619,6 +1615,7 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
     pointer-events: auto;
     white-space: nowrap;
     text-align: center;
+    transform: translateX(-50%);
   }
 
   /* Close arrow — tighter position on mobile */
@@ -1635,13 +1632,13 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
   /* Text info — frosted glass card pinned to bottom */
   .project-page-info {
     flex: none;
-    margin-top: auto;
+    flex-shrink: 0;
     background: rgba(0, 0, 0, 0.35);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border-radius: 16px;
     padding: 24px 20px 40px;
-    margin: auto 12px 24px;
+    margin: 0 12px 24px;
     gap: 12px;
   }
 

@@ -165,12 +165,6 @@ export function openProjectPanel(index, origin, threeCanvas) {
   _panel.style.opacity  = '1'
   _panel.style.clipPath = ''
 
-  // Set marginTop inline so WebGL mesh repositions correctly before CSS layout settles
-  const _imgWrap = document.getElementById('project-panel-image-wrap')
-  if (_imgWrap) {
-    _imgWrap.style.marginTop = window.innerWidth <= 768 ? '34vh' : ''
-  }
-
   // Re-read image-wrap rect after layout is applied
   setTimeout(() => { if (_open) refreshImagePosition() }, 80)
 
