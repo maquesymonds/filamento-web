@@ -43,6 +43,11 @@ let _approachFrozen    = false
 let _approachDone      = false
 let _approachDecelling = false
 
+// Section text show/hide timeouts — module-level so stopJourney() can cancel them
+let _workTimeout    = null
+let _studioTimeout  = null
+let _processTimeout = null
+
 // Returns true if the auto-play tween was resumed (caller should NOT also jump).
 // Returns false if no tween was active (caller should jump to Work manually).
 export function releaseApproachFreeze() {
@@ -84,6 +89,9 @@ export function stopJourney() {
   if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart); _activeTouchStart = null }
   if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove);  _activeTouchMove  = null }
   if (_activeTouchEnd)   { window.removeEventListener('touchend',   _activeTouchEnd);   _activeTouchEnd   = null }
+  clearTimeout(_workTimeout);    _workTimeout    = null
+  clearTimeout(_studioTimeout);  _studioTimeout  = null
+  clearTimeout(_processTimeout); _processTimeout = null
   _seekFn = null
   _approachFrozen = false
 }
@@ -148,9 +156,9 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     _scrollFrame  = Math.max(0, Math.min(Math.round(scroll * fps), scrollEndFr))
   }
 
-  let _workTimeout    = null
-  let _studioTimeout  = null
-  let _processTimeout = null
+  _workTimeout    = null
+  _studioTimeout  = null
+  _processTimeout = null
 
   const onWheel = (e) => {
     // Kill auto-play tween if running — user takes manual control
