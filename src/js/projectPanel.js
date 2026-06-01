@@ -165,8 +165,9 @@ export function openProjectPanel(index, origin, threeCanvas) {
   _panel.style.opacity  = '1'
   _panel.style.clipPath = ''
 
-  // Re-read image-wrap rect after layout is applied
+  // Re-read image-wrap rect after layout settles — second call is fallback for slow iOS layout
   setTimeout(() => { if (_open) refreshImagePosition() }, 80)
+  setTimeout(() => { if (_open) refreshImagePosition() }, 320)
 
   const _wordmark = document.getElementById('brand-wordmark')
   if (_wordmark) gsap.to(_wordmark, { opacity: 0, duration: 0.3, ease: 'power2.in' })
