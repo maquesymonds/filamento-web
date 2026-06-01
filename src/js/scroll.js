@@ -150,6 +150,13 @@ export function showSectionText(sectionId) {
 
   _visibleSection = sectionId
 
+  // Ensure no other section leaks through — hard-cut all others off
+  Object.keys(_blocks).forEach(id => {
+    if (id === sectionId) return
+    const b = _blocks[id]
+    if (b) { gsap.killTweensOf(b); gsap.set(b, { autoAlpha: 0 }) }
+  })
+
   const block = _blocks[sectionId]
   if (!block) return
 
