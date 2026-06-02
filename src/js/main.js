@@ -258,13 +258,18 @@ async function boot() {
     // The first wheel event will kill the intro tween if still playing and sync position.
     enableEndScroll(0)
 
-    // Show butterflies on first scroll (mirrors the "Continue" button path)
+    // Show butterflies on first scroll. Wheel (desktop) NO existe en mobile, así
+    // que también escuchamos touchmove → si no, en el celu no aparecen nunca.
     let _butterfliesShown = false
-    window.addEventListener('wheel', () => {
+    const _showButterfliesOnce = () => {
       if (_butterfliesShown) return
       _butterfliesShown = true
       showButterflies(getCamera())
-    }, { once: true, passive: true })
+      window.removeEventListener('wheel',     _showButterfliesOnce)
+      window.removeEventListener('touchmove', _showButterfliesOnce)
+    }
+    window.addEventListener('wheel',     _showButterfliesOnce, { passive: true })
+    window.addEventListener('touchmove', _showButterfliesOnce, { passive: true })
 
     playIntro(() => {
       window.dispatchEvent(new CustomEvent('filamento:ready'))

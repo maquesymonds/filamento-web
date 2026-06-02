@@ -31,6 +31,14 @@ let _chipBaseRots    = []   // lazy-init: base rotations after mixer setTime(0)
 let _chipBasesReady  = false
 let _chipFloatEnabled = true
 
+// cables_ext (raíces): flotan, pero entre frame 200→240 vuelven de a poco a su
+// posición original (capturada determinísticamente), así no quedan corridas.
+let _cablesReturnNode = null
+const _cablesOrigPos  = new THREE.Vector3()
+const _cablesOrigQuat = new THREE.Quaternion()
+const _CABLES_RETURN_START = 160
+const _CABLES_RETURN_END   = 200
+
 let _florGrandeNode  = null
 let _florFinalPos    = null
 let _florFinalQuat   = null
@@ -203,6 +211,14 @@ export function initExperience(glb) {
       _scene.attach(_terrainFixNode)
     }
 
+    // Posición original de las raíces (target del regreso suave desde el frame 200)
+    const _cn = _nodeMap['cables_ext']
+    if (_cn) {
+      _cablesReturnNode = _cn
+      _cablesOrigPos.copy(_cn.position)
+      _cablesOrigQuat.copy(_cn.quaternion)
+    }
+
     if (!CONFIG.scroll.totalFrames) {
       CONFIG.scroll.totalFrames = Math.round(_duration * 24)
     }
@@ -304,32 +320,43 @@ export function tickChipFloat(elapsed, frame = 0) {
              : frame <= _FLOAT_FADE_START ? 1
              : 1 - (frame - _FLOAT_FADE_START) / (_FLOAT_FADE_END - _FLOAT_FADE_START)
 
-  if (fade === 0) return
+  if (fade > 0) {
+    const dy  = Math.sin(elapsed * 1.2)  * 0.05  * fade
+    const drx = Math.sin(elapsed * 0.8)  * 0.04  * fade
+    const dry = Math.sin(elapsed * 0.55) * 0.18  * fade
+    const drz = Math.cos(elapsed * 0.7)  * 0.035 * fade
 
-  const dy  = Math.sin(elapsed * 1.2)  * 0.05  * fade
-  const drx = Math.sin(elapsed * 0.8)  * 0.04  * fade
-  const dry = Math.sin(elapsed * 0.55) * 0.18  * fade
-  const drz = Math.cos(elapsed * 0.7)  * 0.035 * fade
+    _chipFloatNodes.forEach((node, i) => {
+      node.position.y = _chipBasePoses[i].y + dy
+      node.rotation.x = _chipBaseRots[i].x  + drx
+      node.rotation.y = _chipBaseRots[i].y  + dry
+      node.rotation.z = _chipBaseRots[i].z  + drz
+    })
 
-  _chipFloatNodes.forEach((node, i) => {
-    node.position.y = _chipBasePoses[i].y + dy
-    node.rotation.x = _chipBaseRots[i].x  + drx
-    node.rotation.y = _chipBaseRots[i].y  + dry
-    node.rotation.z = _chipBaseRots[i].z  + drz
-  })
+    // Drag — spring return cuando no se arrastra
+    if (!_isDragging) {
+      _dragTargetX *= 0.92
+      _dragTargetY *= 0.92
+    }
+    _dragRotX += (_dragTargetX - _dragRotX) * 0.12
+    _dragRotY += (_dragTargetY - _dragRotY) * 0.12
 
-  // Drag — spring return cuando no se arrastra
-  if (!_isDragging) {
-    _dragTargetX *= 0.92
-    _dragTargetY *= 0.92
+    _chipFloatNodes.forEach(node => {
+      node.rotation.x += _dragRotX
+      node.rotation.y += _dragRotY
+    })
   }
-  _dragRotX += (_dragTargetX - _dragRotX) * 0.12
-  _dragRotY += (_dragTargetY - _dragRotY) * 0.12
 
-  _chipFloatNodes.forEach(node => {
-    node.rotation.x += _dragRotX
-    node.rotation.y += _dragRotY
-  })
+  // cables_ext: regreso suave a su posición original entre frame 200 y 240.
+  // Así las raíces flotan al principio pero terminan exactamente en su lugar.
+  if (_cablesReturnNode) {
+    const t = (frame - _CABLES_RETURN_START) / (_CABLES_RETURN_END - _CABLES_RETURN_START)
+    const r = t < 0 ? 0 : t > 1 ? 1 : t
+    if (r > 0) {
+      _cablesReturnNode.position.lerp(_cablesOrigPos, r)
+      _cablesReturnNode.quaternion.slerp(_cablesOrigQuat, r)
+    }
+  }
 }
 
 export function enableChipFloat() {
