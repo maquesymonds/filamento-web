@@ -33,7 +33,7 @@ const C = {
 // type 'user'    → user-triggered; dots accumulate via markUserSound()
 const SOUND_DEFS = [
   {
-    name: 'ambient.mp3',
+    name: 'ambient_mix.mp3',
     type: 'loop',
     frame: 0,
     endFrame: -1,
@@ -47,15 +47,6 @@ const SOUND_DEFS = [
     frame: 0,
     label: 'chip',
     fill: 'rgba(255, 220, 75, 0.95)',
-  },
-  {
-    name: 'jungle.mp3',
-    type: 'loop',
-    frame: 25,
-    endFrame: -1,
-    fill:   'rgba(110,220,130,0.16)',
-    stroke: 'rgba(110,220,130,0.60)',
-    tag: 'LOOP',
   },
   {
     name: 'digitalText.mp3',

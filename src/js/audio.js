@@ -1,4 +1,5 @@
-// audio.js — Ambient arranca solo al cargar. Jungle se suma al apretar Start.
+// audio.js — Ambient (ambient_mix) arranca al cargar / primer gesto.
+// (jungle y growing fueron eliminados.)
 
 import { sheet } from './theatre.js'
 import { types } from '@theatre/core'
@@ -131,13 +132,13 @@ function _updateIcon() {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function initAudio() {
-  _ambient        = new Audio('/audio/ambient.mp3')
+  _ambient        = new Audio('/audio/ambient_mix.mp3')
   _ambient.loop   = true
   _ambient.volume = 0
+  _ambient.preload = 'auto'   // bufferea ya, sin esperar al gesto → arranca al instante
+  _ambient.load()
 
-  _jungle        = new Audio('/audio/jungle.mp3')
-  _jungle.loop   = true
-  _jungle.volume = 0
+  // jungle eliminado — _jungle queda null (las llamadas están protegidas)
 
   const btn = document.getElementById('sound-toggle')
   if (btn) btn.addEventListener('click', _toggle)
@@ -159,22 +160,14 @@ export async function startAmbient() {
     await _ambient.play()
     _isOn = true
     _applyVolumes()
+    _flushPendingOneShots()   // autoplay permitido → reproducir ya los sonidos en cola (Start.mp3)
   } catch (_) {
     // Blocked — gesture unlock will catch it on first interaction
   }
 }
 
 export function playGrowing() {
-  const growing = new Audio('/audio/growing.mp3')
-  growing.volume = 0
-  growing.play().catch(() => {
-    const events  = ['pointerdown', 'pointermove', 'keydown']
-    const handler = () => {
-      growing.play().catch(() => {})
-      events.forEach(e => window.removeEventListener(e, handler))
-    }
-    events.forEach(e => window.addEventListener(e, handler, { once: true }))
-  })
+  // growing.mp3 eliminado → no-op (se mantiene el export para no romper imports)
 }
 
 export async function startJungle() {
@@ -188,6 +181,18 @@ export async function startJungle() {
 let _pendingOneShots    = []
 let _clearGestureUnlock = null
 const _activeOneShots   = new Set()
+
+// Reproduce y limpia los sonidos en cola (encolados con playOnUnlock antes de
+// que el audio estuviera desbloqueado). Se llama al desbloquear, sea por gesto
+// o por autoplay permitido.
+function _flushPendingOneShots() {
+  _pendingOneShots.forEach(({ src, volume }) => {
+    const sfx = new Audio(src)
+    sfx.volume = volume
+    sfx.play().catch(() => {})
+  })
+  _pendingOneShots = []
+}
 
 export function playOneShot(src, volume = 1.0) {
   if (!_isOn) return
@@ -221,12 +226,7 @@ function _setupGestureUnlock() {
       _updateIcon()
       _clearGestureUnlock?.()
       _clearGestureUnlock = null
-      _pendingOneShots.forEach(({ src, volume }) => {
-        const sfx = new Audio(src)
-        sfx.volume = volume
-        sfx.play().catch(() => {})
-      })
-      _pendingOneShots = []
+      _flushPendingOneShots()
     } catch (_) {}
   }
   events.forEach(e => window.addEventListener(e, _onGesture, { passive: true }))
@@ -242,7 +242,7 @@ function _toggle() {
     _isOn = false
     _applyVolumes()   // set volumes to 0 so Theatre.js can't sneak them back
     _ambient.pause()
-    _jungle.pause()
+    if (_jungle) _jungle.pause()
     _activeOneShots.forEach(sfx => { sfx.pause(); sfx.currentTime = 0 })
     _activeOneShots.clear()
     _updateIcon()
@@ -257,7 +257,7 @@ function _toggle() {
       _applyVolumes()
       _updateIcon()
     })
-    if (_jungle.currentTime > 0) _jungle.play().catch(() => {})
+    if (_jungle && _jungle.currentTime > 0) _jungle.play().catch(() => {})
     window.dispatchEvent(new CustomEvent('filamento:unmute'))
   }
 }

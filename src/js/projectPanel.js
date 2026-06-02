@@ -459,7 +459,18 @@ function _populate(p) {
   // Video element stays hidden — WebGL VideoTexture reads from it
   if (p.video && vid && srcWebm && srcMp4) {
     srcWebm.src = ''
-    srcMp4.src  = p.video + '.mp4'
+    // En mobile: versión liviana "-mobile.mp4" con fallback al video web si no existe.
+    const _mob = window.innerWidth <= 768
+    delete vid.dataset.fellback
+    srcMp4.src = p.video + (_mob ? '-mobile.mp4' : '.mp4')
+    vid.onerror = (_mob)
+      ? () => {
+          if (vid.dataset.fellback) return
+          vid.dataset.fellback = '1'
+          srcMp4.src = p.video + '.mp4'
+          vid.load(); vid.play().catch(() => {})
+        }
+      : null
     vid.load()
     vid.play().catch(() => {})
   }

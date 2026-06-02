@@ -21,7 +21,10 @@ const _savedMats = new Map()
 function _darkenNonBloom(obj) {
   if (!obj.isMesh) return
   if (Array.isArray(obj.material)) return
-  if (obj.layers.mask & (1 << BLOOM_LAYER)) return  // es bloom — no tocar
+  if (obj.layers.mask & (1 << BLOOM_LAYER)) return     // es bloom — no tocar
+  // Meshes invisibles (ej. pickers de semillas, colorWrite:false) NO deben
+  // convertirse en oclusores negros — taparían el bloom como volúmenes oscuros.
+  if (obj.material && obj.material.colorWrite === false) return
   _savedMats.set(obj, obj.material)
   obj.material = _darkMat
 }

@@ -1611,16 +1611,9 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
 
   /* "Scroll to close" — hint fijo arriba al centro (fuera del flujo, no afecta
      el centrado del video). En mobile no hay hover → no se usa el cursor. */
+  /* Sin "Scroll to close" en mobile (se cierra con swipe / flecha) */
   .project-page-hint {
-    display: block;
-    position: fixed;
-    top: 44px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: auto;
-    text-align: center;
-    pointer-events: none;
-    z-index: 6;
+    display: none;
   }
 
   /* Close arrow — tighter position on mobile */

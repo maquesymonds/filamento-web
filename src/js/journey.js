@@ -103,6 +103,11 @@ export function freezeScroll(ms = 800) {
   _frozenUntil = performance.now() + ms
 }
 
+// Bloqueo del scroll táctil mientras se interactúa con la flor (mobile).
+// main.js lo activa en touchstart sobre la flor y lo desactiva al soltar.
+let _scrollBlocked = false
+export function setScrollBlocked(v) { _scrollBlocked = !!v }
+
 // Scrub the remaining animation (final camera rise) with the mouse wheel.
 // Called once the journey auto-play lands at FLOR_GRANDE, or manually from devnav.
 export function enableEndScroll(fromTime, startAt = fromTime) {
@@ -383,6 +388,7 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   if (_activeTouchEnd)   window.removeEventListener('touchend',   _activeTouchEnd)
 
   _activeTouchStart = (e) => {
+    if (_scrollBlocked) return                  // interactuando con la flor → no scrollear
     if (e.target.closest('#pollen-text')) return
     _stopInertia()
     _touchVel = 0
@@ -390,6 +396,7 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   }
 
   _activeTouchMove = (e) => {
+    if (_scrollBlocked) { _touchY = null; return }   // interactuando con la flor → no scrollear
     if (_touchY === null) return
     const y  = e.touches[0].clientY
     const dy = _touchY - y                    // positivo = swipe arriba = avanzar

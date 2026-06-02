@@ -19,6 +19,9 @@ let _trunkPoints = null
 let _trunkMat    = null
 let _points        = null
 let _centro        = new THREE.Vector3()
+let _radio         = 1   // radio (mundo) que abarca todos los puntos de la flor
+const _bboxMin     = new THREE.Vector3( Infinity,  Infinity,  Infinity)
+const _bboxMax     = new THREE.Vector3(-Infinity, -Infinity, -Infinity)
 let _planoMouse    = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
 let _mouseWorld    = new THREE.Vector3(1e5, 1e5, 1e5)
 let _prevMouseWorld = new THREE.Vector3()
@@ -178,6 +181,19 @@ export async function initParticles(scene, renderer) {
     }
   }
   _centro.set(cx / numPuntos, cy / numPuntos, cz / numPuntos)
+  // Radio + caja contenedora (AABB) que abarcan todos los puntos de la flor
+  let _maxD2 = 0
+  for (let p = 0; p < numPuntos; p++) {
+    const s = p * 6
+    const x = datos[s], y = datos[s+1], z = datos[s+2]
+    const dx = x - _centro.x, dy = y - _centro.y, dz = z - _centro.z
+    const d2 = dx*dx + dy*dy + dz*dz
+    if (d2 > _maxD2) _maxD2 = d2
+    if (x < _bboxMin.x) _bboxMin.x = x;  if (x > _bboxMax.x) _bboxMax.x = x
+    if (y < _bboxMin.y) _bboxMin.y = y;  if (y > _bboxMax.y) _bboxMax.y = y
+    if (z < _bboxMin.z) _bboxMin.z = z;  if (z > _bboxMax.z) _bboxMax.z = z
+  }
+  _radio = Math.sqrt(_maxD2) || 1
   _planoMouse.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 0, 1), _centro)
 
   _posVar = _gpu.addVariable('texturePosition', _SHADER_POS, texPos)
@@ -290,6 +306,12 @@ export async function initParticles(scene, renderer) {
 
   _initTheatrePanel()
 }
+
+// Centro, radio y caja (mundo) de la flor — para detectar toques sobre ella en mobile.
+export function getFlowerCenter() { return _centro }
+export function getFlowerRadius() { return _radio }
+export function getFlowerBoxMin() { return _bboxMin }
+export function getFlowerBoxMax() { return _bboxMax }
 
 // Llamado desde el tick principal con (elapsed, dt, raycaster, mouseActive, camera)
 export function tickParticles(elapsed, dt, raycaster, mouseActive, camera) {

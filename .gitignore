@@ -5,3 +5,6 @@ dist/
 .env
 .env.*
 .vercel
+*.backup.glb
+_audio_backup/
+compress-glb.mjs

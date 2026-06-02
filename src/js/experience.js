@@ -96,8 +96,14 @@ export function initExperience(glb) {
     console.log('[Filamento] Nodos en el GLB:', Object.keys(_nodeMap).join(', '))
     window.__filamentoNodes = Object.keys(_nodeMap)
 
-    // Nodos que NO deben flotar (flor final del recorrido, luces, cámara).
-    const FLOAT_EXCLUDE = new Set(['FLOR_GRANDE', 'distantlight1', 'cam1', 'semilla1', 'semilla2', 'semilla3', 'semilla4'])
+    // Nodos que NO deben flotar (quedan fijos en su lugar original):
+    // flor final, raíz de la flor grande, terrain, luz, cámara, semillas.
+    // cables_ext (raíces) SÍ flota.
+    const FLOAT_EXCLUDE = new Set([
+      'FLOR_GRANDE', 'FLOR_GRANDE_RAICES', 'terrrain',
+      'distantlight1', 'cam1',
+      'semilla1', 'semilla2', 'semilla3', 'semilla4',
+    ])
 
     // Recopilar chip + hermanos que sí deben flotar.
     const chipNode = _nodeMap['chip'] ?? null
@@ -379,6 +385,8 @@ export function chipDragEnd() {
   _isDragging = false
 }
 
+let _orbitTween = null
+
 export function playIntroCameraOrbit(onComplete) {
   if (!_camera) { onComplete?.(); return }
 
@@ -398,7 +406,7 @@ export function playIntroCameraOrbit(onComplete) {
   _camera.quaternion.copy(startQuat)
 
   const proxy = { t: 0 }
-  gsap.to(proxy, {
+  _orbitTween = gsap.to(proxy, {
     t:        1,
     duration: 2.0,
     ease:     'power2.out',
@@ -406,13 +414,16 @@ export function playIntroCameraOrbit(onComplete) {
       _camera.position.lerpVectors(startPos, endPos, proxy.t)
       _camera.quaternion.slerpQuaternions(startQuat, endQuat, proxy.t)
     },
-    onComplete,
+    onComplete() { _orbitTween = null; onComplete?.() },
   })
 }
 
 let _introTween = null
 
 export function playIntro(onComplete, onProgress) {
+  // Matar el orbit de cámara si sigue corriendo → si no, pelean por la cámara
+  // (la tira atrás y se corrige de golpe al apretar Start antes de que termine).
+  if (_orbitTween) { _orbitTween.kill(); _orbitTween = null }
   const introEndTime = getIntroEndTime()
   const proxy = { t: 0 }
   _introTween = gsap.to(proxy, {

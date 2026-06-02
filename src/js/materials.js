@@ -589,15 +589,28 @@ const _semillaCanvases = CONFIG.projects.map(() => {
 const _texPerSemilla  = _semillaCanvases.map(c => c.mapTex)
 const _emisPerSemilla = _semillaCanvases.map(c => c.emisTex)
 
-// VideoTexture per semilla — replaces the static canvas image map
+// VideoTexture per semilla — replaces the static canvas image map.
+// En mobile carga la versión liviana "<video>-mobile.mp4"; si no existe (404),
+// cae automáticamente al video web "<video>.mp4" para no quedar sin imagen.
+const _VID_IS_MOBILE = window.matchMedia('(max-width: 768px)').matches
 const _videoTexPerSemilla = CONFIG.projects.map((p) => {
   if (!p.video) return null
   const vid = document.createElement('video')
-  vid.src         = p.video + '.mp4'
   vid.muted       = true
   vid.loop        = true
   vid.playsInline = true
   vid.setAttribute('playsinline', '')
+  if (_VID_IS_MOBILE) {
+    vid.src = p.video + '-mobile.mp4'
+    vid.addEventListener('error', () => {
+      if (vid.dataset.fellback) return
+      vid.dataset.fellback = '1'
+      vid.src = p.video + '.mp4'   // fallback a la versión web
+      vid.play().catch(() => {})
+    })
+  } else {
+    vid.src = p.video + '.mp4'
+  }
   vid.play().catch(() => {})
   const tex      = new THREE.VideoTexture(vid)
   tex.colorSpace = THREE.SRGBColorSpace

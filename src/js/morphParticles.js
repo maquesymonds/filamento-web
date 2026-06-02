@@ -7,6 +7,9 @@ import { sheet }  from './theatre.js'
 import { types }  from '@theatre/core'
 import { BLOOM_LAYER } from './materials.js'
 
+// En mobile las partículas espiral se ven más grandes → tamaño fijo más chico.
+const _ESP_IS_MOBILE = window.matchMedia('(max-width: 768px)').matches
+
 // ── Shape — dual helix normalizado a caja unitaria ────────────────────────────
 function _dualHelix(n) {
   const pts = [], turns = 5, radius = 15, height = 40
@@ -188,7 +191,7 @@ function _initTheatre() {
     if (!_mat || !_points) return
     _mat.uniforms.uOffset.value.set(v.posX, v.posY, v.posZ)
     _mat.uniforms.uScale.value      = v.escala
-    _mat.uniforms.uSize.value       = v.tamano
+    _mat.uniforms.uSize.value       = _ESP_IS_MOBILE ? 0.05 : v.tamano   // mobile: tamaño fijo más chico
     _mat.uniforms.uBrightness.value = v.brillo
     _mat.uniforms.uOpacity.value    = v.opacidad
     _mat.uniforms.uJitter.value     = v.jitter

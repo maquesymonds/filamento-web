@@ -204,10 +204,20 @@ class Butterfly {
     this.flyDir  = new THREE.Vector3()
   }
 
-  scatter(center) {
-    const dir = new THREE.Vector3(_rnd(1, true), _rnd(1, true), _rnd(1, true)).normalize()
-    this.o3d.position.copy(center).addScaledVector(dir, 5 + Math.random() * 15)
-    this.vel.set(_rnd(0.15, true), _rnd(0.15, true), _rnd(0.15, true))
+  scatter(camPos) {
+    // Nacen DETRÁS de la cámara (esparcidas en el plano de visión) y entran volando
+    // hacia el objetivo del frente. Un impulso inicial hacia adelante las hace entrar
+    // más ágiles, sin superar el límite de velocidad (no vuelan demasiado rápido).
+    const back = -(5 + Math.random() * 12)        // 5-17 unidades detrás
+    const ox   = _rnd(6 * _spreadH, true)
+    const oy   = _rnd(4 * _spreadV, true)
+    this.o3d.position.copy(camPos)
+      .addScaledVector(_camDir, back)
+      .addScaledVector(_right,  ox)
+      .addScaledVector(_up,     oy)
+    // Momentum inicial hacia adelante (≈ al límite) → entrada más rápida
+    this.vel.copy(_camDir).multiplyScalar(_velLimit * 0.85)
+    this.vel.x += _rnd(0.05, true); this.vel.y += _rnd(0.05, true); this.vel.z += _rnd(0.05, true)
     this.baseScale = 0.15 + Math.pow(Math.random(), 0.6) * 1.85
     this.o3d.scale.setScalar(this.baseScale * _scaleMult * _mobileMult)
   }
@@ -236,16 +246,20 @@ class Butterfly {
     const dz  = _pTgt.z - this.o3d.position.z
     const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1
 
-    this.vel.x = _clamp(this.vel.x + _attract * dx / len, -_velLimit, _velLimit)
-    this.vel.y = _clamp(this.vel.y + _attract * dy / len, -_velLimit, _velLimit)
-    this.vel.z = _clamp(this.vel.z + _attract * dz / len, -_velLimit, _velLimit)
+    // Factor relativo a 60fps → movimiento independiente del framerate
+    // (sin esto van rápido en pantallas de FPS alto y lento en las de FPS bajo).
+    const f = dt * 60
+
+    this.vel.x = _clamp(this.vel.x + _attract * dx / len * f, -_velLimit, _velLimit)
+    this.vel.y = _clamp(this.vel.y + _attract * dy / len * f, -_velLimit, _velLimit)
+    this.vel.z = _clamp(this.vel.z + _attract * dz / len * f, -_velLimit, _velLimit)
 
     this.o3d.lookAt(
       this.o3d.position.x + this.vel.x,
       this.o3d.position.y + this.vel.y,
       this.o3d.position.z + this.vel.z,
     )
-    this.o3d.position.add(this.vel)
+    this.o3d.position.addScaledVector(this.vel, f)
   }
 }
 
@@ -314,10 +328,12 @@ export function showButterflies(camera) {
   _state = 'active'
   _flyTimer = 0
   camera.getWorldDirection(_camDir)
-  const center = camera.position.clone().addScaledVector(_camDir, 12)
-  _smooth.copy(center)
+  _right.crossVectors(_camDir, camera.up).normalize()
+  _up.crossVectors(_right, _camDir).normalize()
+  // Objetivo al frente (hacia donde vuelan); nacen detrás de la cámara
+  _smooth.copy(camera.position).addScaledVector(_camDir, _targetDist)
   for (let i = 0; i < _butterflies.length; i++) {
-    _butterflies[i].scatter(center)
+    _butterflies[i].scatter(camera.position)
     _butterflies[i].o3d.visible = i < _activeCount
   }
 }
@@ -386,7 +402,7 @@ export function tickButterflies(elapsed, dt, camera) {
         b.o3d.position.y + b.vel.y,
         b.o3d.position.z + b.vel.z,
       )
-      b.o3d.position.add(b.vel)
+      b.o3d.position.addScaledVector(b.vel, safeDt * 60)   // independiente del framerate
     }
 
     if (_flyTimer >= FLY_DURATION) {

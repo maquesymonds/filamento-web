@@ -13,6 +13,7 @@
 //  10. Botón "Start" → playIntro → dispatch filamento:ready
 //  11. Hover de cables en tick
 
+import './seed.js'   // PRIMERO: siembra Math.random → partículas reproducibles entre cargas
 import * as THREE from 'three'
 import gsap from 'gsap'
 import { initFilamentoLoader }                                   from './filamento-loader.js'
@@ -24,13 +25,13 @@ import { initExperience, activateExperience, playIntro, playIntroCameraOrbit, ge
 import { initScroll, showSectionText, hideSectionText }          from './scroll.js'
 import { setLoadProgress, hideLoader, revealHero, setupBeginButton } from './ui.js'
 import { CONFIG }                                                from './config.js'
-import { startJourney, getScrollFrame, seekJourney, enableEndScroll, jumpScrollTo } from './journey.js'
+import { startJourney, getScrollFrame, seekJourney, enableEndScroll, jumpScrollTo, setScrollBlocked } from './journey.js'
 import { initNavPill }                                          from './navPill.js'
 import { initRadialNav }                                        from './radialNav.js'
 import { initPointCloud, updatePointCloudTime }                  from './pointcloud.js'
 import { initBloom, renderBloom, renderBloomToTarget }           from './bloom.js'
 import { initFilament, setFilamentProgress, tickFilament, isFilamentActive, getFilamentRT, renderFilament } from './postprocessing.js'
-import { initParticles, tickParticles, initRaicesParticles, tickRaicesParticles } from './particles.js'
+import { initParticles, tickParticles, initRaicesParticles, tickRaicesParticles, getFlowerCenter, getFlowerRadius, getFlowerBoxMin, getFlowerBoxMax } from './particles.js'
 import { initMorphParticles, tickMorphParticles, setMorphParticlesVisible } from './morphParticles.js'
 import { initAudioTrimmer }                                      from './audioTrimmer.js'
 import { updateMaterialTime, raizUniforms, growRoots, transitionRootsColor, transitionPetalColors, initRipple, tickRipple, meshesSemillasArr, semillaPickerMeshes, semillaHoverEnter, semillaHoverLeave, semillaSetTilt, setSemillasVisible } from './materials.js'
@@ -48,6 +49,38 @@ const _raycaster  = new THREE.Raycaster()
 const _mouseHover = new THREE.Vector2()
 let   _mouseActive = false
 let   _prevElapsed = 0
+
+// ── Detección de toque sobre la flor (mobile) ────────────────────────────────
+// Proyecta las 8 esquinas de la CAJA contenedora (AABB) de los puntos a pantalla,
+// arma el rectángulo que las abarca y testea si el toque cae dentro (con margen).
+// Gateo de "en foco": el rectángulo tiene que ser suficientemente grande.
+const _flProj = new THREE.Vector3()
+const FLOWER_FOCUS_MIN_FRAC = 0.10   // tamaño mínimo del rect en pantalla (frac. del alto) para "en foco"
+const FLOWER_HIT_MARGIN     = 0.25   // margen extra del rect (frac. de su tamaño) — generoso hacia afuera
+function _flowerTouchHit(clientX, clientY, cam) {
+  const mn = getFlowerBoxMin(), mx = getFlowerBoxMax()
+  if (!isFinite(mn.x)) return false
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  let anyFront = false
+  for (let i = 0; i < 8; i++) {
+    _flProj.set(
+      (i & 1) ? mx.x : mn.x,
+      (i & 2) ? mx.y : mn.y,
+      (i & 4) ? mx.z : mn.z,
+    ).project(cam)
+    if (_flProj.z <= 1) anyFront = true
+    const px = (_flProj.x * 0.5 + 0.5) * window.innerWidth
+    const py = (-_flProj.y * 0.5 + 0.5) * window.innerHeight
+    if (px < minX) minX = px; if (px > maxX) maxX = px
+    if (py < minY) minY = py; if (py > maxY) maxY = py
+  }
+  if (!anyFront) return false                                  // toda la caja detrás de la cámara
+  const w = maxX - minX, h = maxY - minY
+  if (Math.max(w, h) < FLOWER_FOCUS_MIN_FRAC * window.innerHeight) return false   // chica/lejana → no en foco
+  const mX = w * FLOWER_HIT_MARGIN, mY = h * FLOWER_HIT_MARGIN   // expandir el rect (margen)
+  return clientX >= minX - mX && clientX <= maxX + mX &&
+         clientY >= minY - mY && clientY <= maxY + mY
+}
 
 async function boot() {
 
@@ -269,6 +302,7 @@ async function boot() {
   let _pointerDownPos  = null
   let _isDragging      = false
   let _hoveredSemIdx   = -1
+  let _flowerGesture   = false   // mobile: tocando la flor → interactúa, no scrollea
   const _semCursor     = document.getElementById('semilla-cursor')
   const _semCursorLabel = _semCursor?.querySelector('.cursor-label')
 
@@ -279,6 +313,19 @@ async function boot() {
     chipDragStart(e.clientX, e.clientY)
     canvas.setPointerCapture(e.pointerId)
     canvas.style.cursor = 'grabbing'
+
+    // Mobile: si el toque cae sobre la flor (en foco), tomamos el gesto para
+    // interactuar con las partículas y bloqueamos el scroll del journey.
+    if (e.pointerType === 'touch') {
+      const cam = getCamera()
+      if (cam && _flowerTouchHit(e.clientX, e.clientY, cam)) {
+        _flowerGesture = true
+        setScrollBlocked(true)
+        _mouseHover.x =  (e.clientX / window.innerWidth)  * 2 - 1
+        _mouseHover.y = -(e.clientY / window.innerHeight) * 2 + 1
+        _mouseActive  = true
+      }
+    }
   })
 
   window.addEventListener('pointermove', (e) => {
@@ -288,6 +335,12 @@ async function boot() {
       if (Math.sqrt(dx * dx + dy * dy) > 5) _isDragging = true
     }
     chipDragMove(e.clientX, e.clientY)
+    // Mobile: durante el gesto sobre la flor, las partículas siguen el dedo.
+    if (_flowerGesture) {
+      _mouseHover.x =  (e.clientX / window.innerWidth)  * 2 - 1
+      _mouseHover.y = -(e.clientY / window.innerHeight) * 2 + 1
+      _mouseActive  = true
+    }
   }, { passive: true })
 
   const _endDrag = (e) => {
@@ -323,6 +376,12 @@ async function boot() {
     _isDragging = false
     chipDragEnd()
     canvas.style.cursor = 'grab'
+    // Liberar el gesto de la flor → reactivar scroll del journey
+    if (_flowerGesture) {
+      _flowerGesture = false
+      setScrollBlocked(false)
+      _mouseActive = false
+    }
   }
 
   window.addEventListener('pointerup',     _endDrag)
@@ -351,8 +410,14 @@ async function boot() {
   const _fcEl      = document.getElementById('frame-counter')
 
   // Declared before onTick to avoid TDZ — assigned below after scene is ready
-  let _maskMesh        = null
-  const _maskFrameStart = 257
+  // chip + raíces + todas las plantas del chip → invisibles a partir del frame 256
+  let _hideNodes       = []
+  const _HIDE_NAMES    = [
+    'chip', 'cables_ext', 'flor_central',
+    'germinadores', 'orejitas_shreck', 'flores',
+    'arbustito', 'hoja_elefante', 'musguito',
+  ]
+  const _HIDE_FRAME    = 256
   let _semillasShown   = true
 
   // ── Tick: tiempos de shaders + hover ────────────────────────────────────
@@ -370,8 +435,9 @@ async function boot() {
     }
     if (_fcEl) _fcEl.style.opacity = isPanelOpen() ? '0' : '1'
 
-    // Root mask — auto show/hide based on current frame
-    if (_maskMesh) _maskMesh.visible = _animFr >= _maskFrameStart
+    // chip + raíces + plantas (con sus auras, que son hijos) → invisibles desde el frame 256
+    const _hideChip = _animFr >= _HIDE_FRAME
+    for (const n of _hideNodes) n.visible = !_hideChip
 
     // Spiral particles — visible from frame 200 onward
     setMorphParticlesVisible(_animFr >= 200)
@@ -487,40 +553,11 @@ async function boot() {
     if (cam) { cam.fov = fov; cam.updateProjectionMatrix() }
   })
 
-  // ── Plano negro (máscara de raíces) ─────────────────────────────────────
-  // Aparece al llegar al frame 257 para tapar las raíces del chip.
-  // No se pueden ocultar directamente porque comparten objeto con FLOR_GRANDE.
-  // Posición / rotación / escala ajustables en tiempo real desde Theatre.js.
-  const _maskGeo = new THREE.PlaneGeometry(1, 1)
-  const _maskMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide, depthWrite: true, transparent: false, opacity: 1.0 })
-  _maskMesh = new THREE.Mesh(_maskGeo, _maskMat)
-  _maskMesh.renderOrder = 999
-  _maskMesh.layers.enable(1)  // also present in bloom pass so glow doesn't bleed through
-  _maskMesh.visible = false
-  getScene().add(_maskMesh)
-
-  // Pre-compile mask shader so first appearance at frame 257 doesn't stutter
-  getRenderer().compile(getScene(), getCamera())
-
-  const _maskObj = sheet.object('Máscara 3D', {
-    posX:   types.number(0,   { range: [-20, 20],    nudgeMultiplier: 0.05 }),
-    posY:   types.number(0,   { range: [-20, 20],    nudgeMultiplier: 0.05 }),
-    posZ:   types.number(0,   { range: [-20, 20],    nudgeMultiplier: 0.05 }),
-    rotX:   types.number(0,   { range: [-180, 180],  nudgeMultiplier: 1    }),
-    rotY:   types.number(0,   { range: [-180, 180],  nudgeMultiplier: 1    }),
-    rotZ:   types.number(0,   { range: [-180, 180],  nudgeMultiplier: 1    }),
-    scaleX: types.number(4,   { range: [0.1, 40],    nudgeMultiplier: 0.1  }),
-    scaleY: types.number(4,   { range: [0.1, 40],    nudgeMultiplier: 0.1  }),
-  })
-  _maskObj.onValuesChange((v) => {
-    _maskMesh.position.set(v.posX, v.posY, v.posZ)
-    _maskMesh.rotation.set(
-      v.rotX * Math.PI / 180,
-      v.rotY * Math.PI / 180,
-      v.rotZ * Math.PI / 180,
-    )
-    _maskMesh.scale.set(v.scaleX, v.scaleY, 1)
-  })
+  // chip + raíces + plantas del chip: se ocultan directamente a partir del frame 256
+  // (ver onTick). Antes había un plano negro ("Máscara 3D"); ya no hace falta.
+  _hideNodes = _HIDE_NAMES
+    .map(name => getScene().getObjectByName(name))
+    .filter(Boolean)
 
 }
 
