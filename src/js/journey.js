@@ -180,40 +180,14 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
 
     // Cap per-event deltaY so a fast swipe can't skip the hold zone in one tick
     const delta = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 60)
-    scroll = Math.min(scrollEnd, scroll + delta * 0.012)
+    // Clamp a >= 0: scrollear hacia atrás al principio se queda en el frame 0
+    // (el "loop hacia atrás" al final quedó deshabilitado para que el usuario no
+    //  caiga al final de la página sin querer).
+    scroll = Math.max(0, Math.min(scrollEnd, scroll + delta * 0.012))
 
     // Soft brake at the end — accumulate extra forward scroll before looping
     if (scroll >= scrollEnd && delta > 0) _endAccum += Math.abs(delta)
     else if (delta < 0) _endAccum = Math.max(0, _endAccum - Math.abs(delta) * 0.4)
-
-    // Backward loop: user scrolls up past the very beginning
-    if (scroll < 0 && !_transitioning) {
-      _transitioning = true
-      _seekFn = null
-      window.removeEventListener('wheel', onWheel)
-      _stopInertia()
-      if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart); _activeTouchStart = null }
-      if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove);  _activeTouchMove  = null }
-      if (_activeTouchEnd)   { window.removeEventListener('touchend',   _activeTouchEnd);   _activeTouchEnd   = null }
-
-      CONFIG.scroll.sections.filter(s => s.hasText).forEach(s => hideSectionText(s.id))
-      const _pollenEl = document.getElementById('pollen-text')
-      if (_pollenEl) gsap.set(_pollenEl, { opacity: 0 })
-
-      setAnimationTime(freezeTime)
-
-      const origin = { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-      playCircleOpen(getRenderer().domElement, origin, {
-        duration: 2.0,
-        onComplete: () => {
-          showSectionText('contact')
-          enableEndScroll(0, freezeTime)
-        },
-      })
-      return
-    }
-
-    scroll = Math.max(0, scroll)
 
     // Approach freeze: stop at frame 170, show text — release on forward scroll or Continue btn
     if (!_approachDone && scroll >= approachFreezeTime) {

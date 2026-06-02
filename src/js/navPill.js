@@ -280,37 +280,12 @@ export function initNavPill() {
     }
 
     // ── Start screen navigation ───────────────────────────────────
+    // Solo ArrowRight → Begin (hacia adelante). El "ir a Contact desde el inicio"
+    // (ArrowLeft / scroll arriba / swipe abajo) quedó deshabilitado para que el
+    // usuario no caiga al final de la página sin querer.
     const beginBtn = document.getElementById('begin-btn')
     const onStart  = beginBtn && !beginBtn.disabled && parseFloat(beginBtn.style.opacity) > 0.5
     if (!onStart) return
-    e.preventDefault()
-    if (e.key === 'ArrowRight') beginBtn.click()
-    else                        _goToContactFromStart()
+    if (e.key === 'ArrowRight') { e.preventDefault(); beginBtn.click() }
   })
-
-  // Scroll up on start screen → go to contact with radial transition
-  window.addEventListener('wheel', (e) => {
-    if (e.deltaY >= 0) return
-    const beginBtn = document.getElementById('begin-btn')
-    const onStart  = beginBtn && !beginBtn.disabled && parseFloat(beginBtn.style.opacity) > 0.5
-    if (!onStart) return
-    _goToContactFromStart()
-  }, { passive: true })
-
-  // Touch swipe down on start screen → go to contact
-  let _startTouchY = null
-  window.addEventListener('touchstart', (e) => {
-    _startTouchY = e.touches[0].clientY
-  }, { passive: true })
-  window.addEventListener('touchend', (e) => {
-    if (_startTouchY === null) return
-    const endY  = e.changedTouches[0].clientY
-    const swipe = endY - _startTouchY   // positive = swipe down
-    _startTouchY = null
-    if (swipe < 40) return              // not a clear downward swipe
-    const beginBtn = document.getElementById('begin-btn')
-    const onStart  = beginBtn && !beginBtn.disabled && parseFloat(beginBtn.style.opacity) > 0.5
-    if (!onStart) return
-    _goToContactFromStart()
-  }, { passive: true })
 }
