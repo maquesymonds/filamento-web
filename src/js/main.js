@@ -423,6 +423,10 @@ async function boot() {
     'arbustito', 'hoja_elefante', 'musguito',
   ]
   const _HIDE_FRAME    = 256
+  // FLOR_GRANDE + su raíz + terrain → invisibles HASTA el frame 180 (visibles desde 180)
+  let _revealNodes     = []
+  const _REVEAL_NAMES  = ['FLOR_GRANDE', 'FLOR_GRANDE_RAICES', 'terrrain']
+  const _REVEAL_FRAME  = 180
   let _semillasShown   = true
 
   // ── Tick: tiempos de shaders + hover ────────────────────────────────────
@@ -443,6 +447,10 @@ async function boot() {
     // chip + raíces + plantas (con sus auras, que son hijos) → invisibles desde el frame 256
     const _hideChip = _animFr >= _HIDE_FRAME
     for (const n of _hideNodes) n.visible = !_hideChip
+
+    // FLOR_GRANDE + raíz + terrain → visibles recién a partir del frame 180
+    const _revealOn = _animFr >= _REVEAL_FRAME
+    for (const n of _revealNodes) n.visible = _revealOn
 
     // Spiral particles — visible from frame 200 onward
     setMorphParticlesVisible(_animFr >= 200)
@@ -561,6 +569,11 @@ async function boot() {
   // chip + raíces + plantas del chip: se ocultan directamente a partir del frame 256
   // (ver onTick). Antes había un plano negro ("Máscara 3D"); ya no hace falta.
   _hideNodes = _HIDE_NAMES
+    .map(name => getScene().getObjectByName(name))
+    .filter(Boolean)
+
+  // FLOR_GRANDE + raíz + terrain: ocultos hasta el frame 180 (ver onTick)
+  _revealNodes = _REVEAL_NAMES
     .map(name => getScene().getObjectByName(name))
     .filter(Boolean)
 

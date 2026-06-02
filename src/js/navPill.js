@@ -110,6 +110,7 @@ function _jumpTo(sectionId) {
       scrollHint.style.pointerEvents = 'auto'
       gsap.to(scrollHint, { opacity: 1, duration: 0.5, ease: 'power2.out' })
     }
+    jumpScrollTo(t)   // habilitar también el scroll (antes quedaba muerto al ir a Studio)
   } else {
     if (scrollHint) { scrollHint.style.opacity = '0'; scrollHint.style.pointerEvents = 'none' }
     jumpScrollTo(t)
