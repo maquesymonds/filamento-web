@@ -598,8 +598,14 @@ const _videoTexPerSemilla = CONFIG.projects.map((p) => {
   const vid = document.createElement('video')
   vid.muted       = true
   vid.loop        = true
+  vid.autoplay    = true
   vid.playsInline = true
   vid.setAttribute('playsinline', '')
+  vid.setAttribute('webkit-playsinline', '')
+  vid.setAttribute('muted', '')
+  vid.setAttribute('autoplay', '')
+  // iOS decodifica el <video> como textura solo si está en el DOM → oculto 1px.
+  vid.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1'
   if (_VID_IS_MOBILE) {
     vid.src = p.video + '-mobile.mp4'
     vid.addEventListener('error', () => {
@@ -612,6 +618,7 @@ const _videoTexPerSemilla = CONFIG.projects.map((p) => {
     vid.src = p.video + '.mp4'
   }
   vid.play().catch(() => {})
+  document.body.appendChild(vid)
   const tex      = new THREE.VideoTexture(vid)
   tex.colorSpace = THREE.SRGBColorSpace
   tex.minFilter  = THREE.LinearFilter
@@ -620,6 +627,18 @@ const _videoTexPerSemilla = CONFIG.projects.map((p) => {
   tex.wrapT      = THREE.RepeatWrapping
   return tex
 })
+
+// iOS/mobile: el autoplay de los videos sin gesto está bloqueado → en el primer
+// gesto del usuario reintentamos reproducir todos los videos de las semillas.
+function _unlockSeedVideos() {
+  for (const tex of _videoTexPerSemilla) {
+    if (tex && tex.image && tex.image.play) tex.image.play().catch(() => {})
+  }
+  ;['pointerdown', 'touchstart', 'click', 'keydown']
+    .forEach(ev => window.removeEventListener(ev, _unlockSeedVideos))
+}
+;['pointerdown', 'touchstart', 'click', 'keydown']
+  .forEach(ev => window.addEventListener(ev, _unlockSeedVideos, { passive: true }))
 
 // Called from applyMaterials. Orientation/range is handled via texture.repeat/offset —
 // the canvas is always drawn normally (no flip transforms needed here).
