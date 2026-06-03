@@ -48,33 +48,12 @@ export function setRenderPipeline(fn) { _renderFn = fn }
 
 export function onTick(fn) { _tickListeners.push(fn) }
 
-// ── Pixel ratio adaptativo ────────────────────────────────────────────────────
-// Mide los FPS y baja la resolución de render si la máquina sufre (y la sube si
-// va sobrada). Resuelve el "scroll trancado" en compus flojas / pantallas Retina
-// sin sacrificar calidad en las buenas. El DPR baja hasta 1.0; sube hasta 2.0.
-const _DPR_MAX  = Math.min(window.devicePixelRatio || 1, 2)
-const _DPR_MIN  = 1.0
-const _DPR_STEP = 0.25
-let   _curDPR   = _DPR_MAX
-
-function _applyDPR() {
-  if (!_renderer) return
-  _renderer.setPixelRatio(_curDPR)
-  // Re-dimensiona canvas + composers de bloom/postpro (escuchan 'resize')
-  window.dispatchEvent(new Event('resize'))
-  console.log('[Perf] pixel ratio →', _curDPR.toFixed(2))
-}
-
 export function startLoop() {
   const clock = new THREE.Clock()
-  let _prev = 0
-  let _accT = 0, _accN = 0, _sinceAdjust = 0
 
   function loop() {
     _rafId = requestAnimationFrame(loop)
     const elapsed = clock.getElapsedTime()
-    const dt = elapsed - _prev
-    _prev = elapsed
     _tickListeners.forEach(fn => fn(elapsed))
 
     if (_renderer && _scene && _camera) {
@@ -82,20 +61,6 @@ export function startLoop() {
         _renderFn(_renderer, _scene, _camera)
       } else {
         _renderer.render(_scene, _camera)
-      }
-    }
-
-    // ── Adaptación de calidad cada ~1s (con cooldown para no oscilar) ──
-    _accT += dt; _accN++; _sinceAdjust += dt
-    if (_accT >= 1.0) {
-      const fps = _accN / _accT
-      _accT = 0; _accN = 0
-      if (_sinceAdjust >= 1.5 && _DPR_MAX > _DPR_MIN) {
-        if (fps < 45 && _curDPR > _DPR_MIN) {
-          _curDPR = Math.max(_DPR_MIN, _curDPR - _DPR_STEP); _applyDPR(); _sinceAdjust = 0
-        } else if (fps > 57 && _curDPR < _DPR_MAX) {
-          _curDPR = Math.min(_DPR_MAX, _curDPR + _DPR_STEP); _applyDPR(); _sinceAdjust = 0
-        }
       }
     }
   }

@@ -8,6 +8,32 @@ import { setRadialActive } from './radialNav.js'
 import { showPollenText, hidePollenText } from './pollenText.js'
 import { getCamera } from './experience.js'
 
+// Aviso "copied" que SIGUE al mouse (así no queda tapado por la caja del mail),
+// con la tipografía del sitio. Se desvanece solo después de ~1.4s.
+function _showCopyToast(text, x, y) {
+  const t = document.createElement('div')
+  t.textContent = text
+  t.style.cssText = [
+    'position:fixed',
+    "font-family:'Chakra Petch', sans-serif", 'font-weight:300', 'font-size:12px',
+    'letter-spacing:0.18em', 'text-transform:uppercase', 'color:rgba(255,255,255,0.92)',
+    'text-shadow:0 0 10px rgba(77,217,192,0.65), 0 0 24px rgba(77,217,192,0.28)',
+    'white-space:nowrap', 'pointer-events:none', 'z-index:99999',
+    'opacity:0', 'transition:opacity 0.18s ease',
+  ].join(';')
+  const _move = (cx, cy) => { t.style.left = (cx + 14) + 'px'; t.style.top = (cy - 6) + 'px' }
+  _move(x, y)
+  document.body.appendChild(t)
+  const _onMove = (e) => _move(e.clientX, e.clientY)
+  window.addEventListener('mousemove', _onMove)
+  requestAnimationFrame(() => { t.style.opacity = '1' })
+  setTimeout(() => {
+    t.style.opacity = '0'
+    window.removeEventListener('mousemove', _onMove)
+    setTimeout(() => t.remove(), 300)
+  }, 1400)
+}
+
 // ── fx2 scramble effect for contact items ────────────────────────────────────
 const _FX2 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$&*()-_+=[]{};<>,0123456789'
 
@@ -80,8 +106,22 @@ export function initScroll() {
           const el = document.createElement('a')
           el.className = 'contact-item'
           el.href = item.href
-          el.target = '_blank'
-          el.rel = 'noopener noreferrer'
+          const isMail = /^mailto:/i.test(item.href)
+          // mailto: NO debe abrir en pestaña nueva (deja pestaña en blanco). Solo http(s).
+          if (!isMail) {
+            el.target = '_blank'
+            el.rel = 'noopener noreferrer'
+          }
+          // En DESKTOP el mailto suele no hacer nada (sin cliente de mail). Copiamos
+          // el mail al portapapeles + aviso. En mobile se deja el mailto (funciona).
+          if (isMail && !_IS_MOBILE) {
+            const email = item.href.replace(/^mailto:/i, '')
+            el.addEventListener('click', (e) => {
+              e.preventDefault()
+              navigator.clipboard?.writeText(email).catch(() => {})
+              _showCopyToast('copied', e.clientX, e.clientY)
+            })
+          }
           el.textContent = `[ ${item.label} ]`
           itemsRow.appendChild(el)
         })
