@@ -10,7 +10,8 @@ import { playCircleOpen, playCircleClose }               from './circleTransitio
 import { getRenderer }                                   from './scene.js'
 import { playPixelReveal }                               from './pixelReveal.js'
 import { initProjectBackground, showProjectBackground,
-         hideProjectBackground, refreshImagePosition }   from './projectBackground.js'
+         hideProjectBackground, refreshImagePosition,
+         setPointerUV }                                  from './projectBackground.js'
 import { initJellyfish, showJellyfish, hideJellyfish }   from './jellyfishBackground.js'
 import { freezeScroll }                                  from './journey.js'
 
@@ -20,6 +21,7 @@ let _lastOrigin    = { x: 50, y: 50 }
 let _mediaCursor   = null
 let _mediaOverlay  = null
 let _currentWebUrl = null
+const _IS_MOBILE   = window.matchMedia('(max-width: 768px)').matches
 
 export function initProjectPanel() {
   _panel = document.getElementById('project-panel')
@@ -27,9 +29,11 @@ export function initProjectPanel() {
   initProjectBackground()
   initJellyfish()
 
+  // Scroll dentro del proyecto: deshabilitado. No cierra el panel ni mueve el
+  // fondo (el viaje 3D ya está bloqueado en journey.js mientras el panel está
+  // abierto). Solo frenamos la propagación para que nada herede el wheel.
   _panel.addEventListener('wheel', (e) => {
     e.stopPropagation()
-    if (_open) closeProjectPanel()
   }, { passive: true })
 
   const _closeBtn = document.getElementById('project-panel-close')
@@ -142,9 +146,42 @@ export function initProjectPanel() {
   _mediaOverlay.addEventListener('click', () => {
     if (_currentWebUrl) window.open(_currentWebUrl, '_blank', 'noopener')
   })
-  _mediaOverlay.addEventListener('wheel', () => {
-    if (_open) closeProjectPanel()
+  _mediaOverlay.addEventListener('wheel', (e) => {
+    e.stopPropagation()   // scroll deshabilitado dentro del proyecto
   }, { passive: true })
+
+  // ── Mobile: drag sobre el video → efecto ripple (equivalente al hover de desktop) ──
+  // En desktop el ripple sigue al mouse; en mobile lo movemos con el dedo sobre el
+  // video. Un TAP (sin arrastrar) abre el link; un DRAG mueve el efecto y NO navega.
+  // stopPropagation evita disparar el swipe-to-close del panel mientras arrastrás.
+  if (_IS_MOBILE) {
+    const imgWrap = document.getElementById('project-panel-image-wrap')
+    if (imgWrap) {
+      let _sx = 0, _sy = 0, _dragged = false
+      imgWrap.addEventListener('touchstart', (e) => {
+        if (!_open) return
+        const tch = e.touches[0]
+        _sx = tch.clientX; _sy = tch.clientY; _dragged = false
+        setPointerUV(tch.clientX, tch.clientY)
+        e.stopPropagation()
+      }, { passive: true })
+
+      imgWrap.addEventListener('touchmove', (e) => {
+        if (!_open) return
+        const tch = e.touches[0]
+        if (Math.hypot(tch.clientX - _sx, tch.clientY - _sy) > 10) _dragged = true
+        setPointerUV(tch.clientX, tch.clientY)
+        e.stopPropagation()
+      }, { passive: true })
+
+      imgWrap.addEventListener('touchend', (e) => {
+        if (!_open) return
+        e.stopPropagation()
+        // Tap limpio sobre un proyecto con link → abrir; drag → solo efecto.
+        if (!_dragged && _currentWebUrl) window.open(_currentWebUrl, '_blank', 'noopener')
+      }, { passive: true })
+    }
+  }
 }
 
 export function isPanelOpen() { return _open }
@@ -420,10 +457,11 @@ function _populate(p) {
   if (hint) {
     hint.style.top  = ''
     hint.style.left = ''
-    // "Click to see project" era el hint de hover de desktop; en mobile no aplica
-    // (no hay hover). Siempre mostramos "Scroll to close". El link al proyecto
-    // está disponible en el botón "Project Link" de la tarjeta de texto.
-    hint.textContent = 'Scroll to close'
+    // El scroll quedó deshabilitado dentro del proyecto. El cierre es por el
+    // botón ← (arriba) / Esc en desktop, o swipe en mobile. No mostramos ningún
+    // hint de cierre.
+    hint.textContent   = ''
+    hint.style.display = 'none'
     hint.removeAttribute('href')
     hint.dataset.hasLink = 'false'
   }
@@ -446,8 +484,11 @@ function _populate(p) {
   // land on the overlay and navigate away before the user sees the panel.
   _currentWebUrl = p.webUrl || null
   if (imgWrap) imgWrap.classList.toggle('has-link', !!_currentWebUrl)
+  // Desktop: overlay con cursor "Click to see project" + click para abrir.
+  // Mobile: NO usamos el overlay (taparía el video); el tap/drag se maneja sobre
+  // el image-wrap (ver initProjectPanel) → tap abre, drag hace el efecto.
   if (_mediaOverlay) {
-    if (_currentWebUrl) {
+    if (_currentWebUrl && !_IS_MOBILE) {
       _mediaOverlay.style.display       = 'block'
       _mediaOverlay.style.pointerEvents = 'none'
       setTimeout(() => { if (_open) _mediaOverlay.style.pointerEvents = 'auto' }, 600)

@@ -12,6 +12,7 @@ import { getRenderer }                                    from './scene.js'
 import { resetRootsColor }                                 from './materials.js'
 import { playOneShot }                                     from './audio.js'
 import { hideButterflies }                                 from './butterflies.js'
+import { isPanelOpen }                                     from './projectPanel.js'
 
 function _journeyEndTime() {
   const dur    = getAnimationDuration()
@@ -38,6 +39,27 @@ let _activeTouchMove  = null
 let _activeTouchEnd   = null
 let _inertiaRafId     = null
 
+// ── Paradas en cada proyecto (semillas) ──────────────────────────────────────
+// El scroll maneja TODO el journey. En cada proyecto la cámara frena (como el
+// freeze de Approach): se sigue con scroll hacia adelante (tras una breve pausa)
+// o con el botón Continue, que la mueve (tween) hasta el siguiente proyecto.
+// _projGliding solo es true durante ese tween del botón (lock momentáneo).
+let _projectStopFn = null     // botón Continue → glide al siguiente proyecto
+let _projGliding   = false    // true solo mientras corre el tween del botón
+let _projectTween  = null     // tween activo del glide entre proyectos
+export function advanceProjectStop() { return _projectStopFn ? _projectStopFn() : false }
+
+// Suavizado del mouse wheel — la rueda manda saltos discretos grandes y
+// espaciados (a tirones); el trackpad/touch mandan deltas chicos y continuos.
+// Acumulamos el deltaY de la rueda y lo repartimos en varios frames vía rAF,
+// alimentando el handler con pasos pequeños → movimiento fluido.
+let _wheelAccum = 0
+let _wheelRaf   = null
+function _stopWheelSmooth() {
+  if (_wheelRaf) { cancelAnimationFrame(_wheelRaf); _wheelRaf = null }
+  _wheelAccum = 0
+}
+
 // Approach freeze — frame 170 stops the scroll until user clicks Continue
 let _approachFrozen    = false
 let _approachDone      = false
@@ -58,6 +80,7 @@ export function releaseApproachFreeze() {
   if (_autoPlayTween) {
     // Kill any active deceleration tween and re-accelerate regardless of paused state
     gsap.killTweensOf(_autoPlayTween)
+    _stopWheelSmooth()
     if (_activeOnWheel) {
       window.removeEventListener('wheel', _activeOnWheel)
       _activeOnWheel = null
@@ -85,6 +108,7 @@ export function jumpScrollTo(t) {
 export function stopJourney() {
   if (_autoPlayTween) { _autoPlayTween.kill(); _autoPlayTween = null }
   if (_inertiaRafId)     { cancelAnimationFrame(_inertiaRafId);                         _inertiaRafId     = null }
+  _stopWheelSmooth()
   if (_activeOnWheel)    { window.removeEventListener('wheel',      _activeOnWheel);    _activeOnWheel    = null }
   if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart); _activeTouchStart = null }
   if (_activeTouchMove)  { window.removeEventListener('touchmove',  _activeTouchMove);  _activeTouchMove  = null }
@@ -92,6 +116,9 @@ export function stopJourney() {
   clearTimeout(_workTimeout);    _workTimeout    = null
   clearTimeout(_studioTimeout);  _studioTimeout  = null
   clearTimeout(_processTimeout); _processTimeout = null
+  if (_projectTween) { _projectTween.kill(); _projectTween = null }
+  _projectStopFn = null
+  _projGliding   = false
   _seekFn = null
   _approachFrozen = false
 }
@@ -161,11 +188,71 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     _scrollFrame  = Math.max(0, Math.min(Math.round(scroll * fps), scrollEndFr))
   }
 
+  // ── Paradas en cada proyecto (semillas) ────────────────────────────────────
+  // Frames de parada. El primero (256) es el handoff del auto-play (la cámara ya
+  // queda ahí), así que los freezes del scroll son los que están POR DELANTE del
+  // arranque (271, 285, 302). El scroll frena en cada uno (con una breve pausa) y
+  // sigue solo con scroll hacia adelante; el botón Continue hace el glide.
+  const _allStops        = (CONFIG.journey.projectStops ?? [256, 271, 285, 302]).map(f => f / fps)
+  const _contactStopTime = ((CONFIG.scroll.sections.find(s => s.id === 'contact')?.navFrame) ?? 358) / fps
+  const _projFreezeTimes = _allStops.filter(tt => tt > startAt + (1.5 / fps))   // solo los de adelante
+  const PROJ_COOLDOWN    = 450    // ms de pausa mínima en cada proyecto antes de poder seguir
+  let _projIdx           = 0      // índice del próximo freeze a encontrar
+  let _projFrozen        = false  // true mientras está frenada en un freeze
+  let _projFreezeUntil   = 0      // timestamp hasta el cual se mantiene el freeze
+
+  // Botón Continue → mueve la cámara (tween) hasta el siguiente proyecto y la deja
+  // frenada ahí; tras el último, va a Contact y libera el scroll para el loop.
+  _projectStopFn = () => {
+    if (_projGliding) return true
+    const targetIdx = _projFrozen ? _projIdx + 1 : _projIdx
+    const toContact = targetIdx >= _projFreezeTimes.length
+    const toT       = toContact ? _contactStopTime : _projFreezeTimes[targetIdx]
+    if (!toContact && toT <= scroll + 1e-4) return false   // nada por delante
+
+    _projGliding = true
+    const tw = { v: scroll }
+    _projectTween = gsap.to(tw, {
+      v:        toT,
+      duration: Math.max(1.0, Math.min(2.4, Math.abs(toT - scroll) * 3.0)),
+      ease:     'power3.inOut',
+      onUpdate() {
+        scroll = tw.v
+        t      = Math.min(scroll, freezeTime)
+        setAnimationTime(t)
+        _cameraLocked = scroll >= freezeTime
+        _scrollFrame  = Math.max(0, Math.min(Math.round(scroll * fps), scrollEndFr))
+      },
+      onComplete() {
+        _projectTween = null
+        _projGliding  = false
+        scroll        = toT
+        if (toContact) {
+          _projIdx      = _projFreezeTimes.length
+          _projFrozen   = false
+          _contactShown = true
+          hideSectionText('work')
+          setTimeout(() => showSectionText('contact'), 300)
+        } else {
+          _projIdx         = targetIdx
+          _projFrozen      = true
+          _projFreezeUntil = performance.now() + PROJ_COOLDOWN
+        }
+      },
+    })
+    return true
+  }
+
   clearTimeout(_workTimeout);    _workTimeout    = null
   clearTimeout(_studioTimeout);  _studioTimeout  = null
   clearTimeout(_processTimeout); _processTimeout = null
 
   const onWheel = (e) => {
+    // Proyecto abierto → el scroll de fondo (viaje 3D) queda deshabilitado.
+    if (isPanelOpen()) return
+    // Solo mientras el botón Continue está moviendo la cámara (tween) ignoramos
+    // el scroll; el resto del tiempo el scroll maneja todo el journey.
+    if (_projGliding) return
     // Kill auto-play tween if running — user takes manual control
     if (_autoPlayTween) { _autoPlayTween.kill(); _autoPlayTween = null }
     // If intro was still playing, kill it and sync scroll to the current camera position
@@ -220,6 +307,27 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     // Scrolling backward past approach — clear frozen state
     if (_approachFrozen && scroll < approachFreezeTime) {
       _approachFrozen = false
+    }
+
+    // ── Paradas en proyectos (semillas) ──────────────────────────────────────
+    // Al cruzar un freeze hacia adelante, la cámara se clava ahí. Para seguir:
+    // scroll hacia adelante (tras una breve pausa) o el botón Continue. Hacia
+    // atrás libera el freeze (vuelve a frenar al pasar de nuevo hacia adelante).
+    if (_projIdx < _projFreezeTimes.length) {
+      const stopT = _projFreezeTimes[_projIdx]
+      if (!_projFrozen) {
+        if (delta > 0 && scroll >= stopT) {
+          _projFrozen      = true
+          _projFreezeUntil = performance.now() + PROJ_COOLDOWN
+          scroll = stopT
+        }
+      } else if (delta < 0) {
+        _projFrozen = false                       // scroll atrás → libera
+      } else if (performance.now() >= _projFreezeUntil) {
+        _projFrozen = false; _projIdx++           // pasó la pausa → sigue de largo
+      } else {
+        scroll = stopT                            // mantener frenado durante la pausa
+      }
     }
 
     // Camera: scrub freely until freeze point, then lock
@@ -290,7 +398,8 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     if (progress >= 1.0 && _endAccum >= 220 && !_transitioning) {
       _transitioning = true
       _seekFn = null
-      window.removeEventListener('wheel', onWheel)
+      _stopWheelSmooth()
+      window.removeEventListener('wheel', _activeOnWheel)
       // Mobile: remove touch listeners too — sin esto siguen activos y rompen el estado al reiniciar
       _stopInertia()
       if (_activeTouchStart) { window.removeEventListener('touchstart', _activeTouchStart); _activeTouchStart = null }
@@ -334,11 +443,40 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     }
   }
 
-  _activeOnWheel = onWheel
+  // El listener crudo acumula el deltaY (capeado igual que antes, así NO avanza
+  // más rápido); un rAF lo drena en pasos chicos hacia onWheel → la rueda deja
+  // de ir a tirones. El step por frame está clampeado para que nunca salte.
+  const WHEEL_SENS  = 0.38   // sensibilidad: <1 = cuesta más avanzar (menos distancia por notch)
+  const WHEEL_DRAIN = 0.2    // fracción drenada por frame (ease-out)
+  const WHEEL_STEP  = 8      // tope de deltaY alimentado por frame → sin saltos
+  const _wheelSmooth = () => {
+    let step = _wheelAccum * WHEEL_DRAIN
+    step = Math.sign(step) * Math.min(Math.abs(step), WHEEL_STEP)
+    if (Math.abs(_wheelAccum) > 0.5) {
+      _wheelAccum -= step
+      onWheel({ deltaY: step })
+      _wheelRaf = requestAnimationFrame(_wheelSmooth)
+    } else {
+      _wheelAccum = 0
+      _wheelRaf   = null
+    }
+  }
+  const WHEEL_BUFMAX = 140   // tope del buffer → sin momentum de arrastre excesivo
+  const _onWheelRaw = (e) => {
+    if (isPanelOpen()) return
+    // Capea cada evento (60) y aplica sensibilidad → cuesta más avanzar, sin trancar.
+    _wheelAccum += Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 60) * WHEEL_SENS
+    _wheelAccum = Math.max(-WHEEL_BUFMAX, Math.min(WHEEL_BUFMAX, _wheelAccum))
+    if (!_wheelRaf) _wheelRaf = requestAnimationFrame(_wheelSmooth)
+  }
+
+  _stopWheelSmooth()
+  _activeOnWheel = _onWheelRaw
   window.removeEventListener('wheel', _activeOnWheel)
   window.addEventListener('wheel', _activeOnWheel, { passive: true })
 
   // ── Touch support for mobile — con inercia ───────────────────────────────────
+  const TOUCH_SENS = 0.7  // <1 = cuesta más avanzar en mobile (antes era 1.2)
   let _touchY   = null
   let _touchVel = 0       // velocity en px/frame
 
@@ -349,7 +487,7 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   const _runInertia = () => {
     _touchVel *= 0.88                         // decay — 0.88 ≈ se detiene en ~400ms
     if (Math.abs(_touchVel) > 0.3) {
-      onWheel({ deltaY: _touchVel })
+      onWheel({ deltaY: _touchVel * TOUCH_SENS })
       _inertiaRafId = requestAnimationFrame(_runInertia)
     } else {
       _inertiaRafId = null
@@ -362,6 +500,8 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   if (_activeTouchEnd)   window.removeEventListener('touchend',   _activeTouchEnd)
 
   _activeTouchStart = (e) => {
+    if (isPanelOpen()) return                   // proyecto abierto → sin scroll de fondo
+    if (_projGliding) return                    // botón Continue moviendo la cámara
     if (_scrollBlocked) return                  // interactuando con la flor → no scrollear
     if (e.target.closest('#pollen-text')) return
     _stopInertia()
@@ -370,13 +510,15 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   }
 
   _activeTouchMove = (e) => {
+    if (isPanelOpen()) { _touchY = null; return }    // proyecto abierto → sin scroll de fondo
+    if (_projGliding)  { _touchY = null; return }    // botón Continue moviendo la cámara
     if (_scrollBlocked) { _touchY = null; return }   // interactuando con la flor → no scrollear
     if (_touchY === null) return
     const y  = e.touches[0].clientY
     const dy = _touchY - y                    // positivo = swipe arriba = avanzar
     _touchY  = y
     _touchVel = dy                            // guarda velocidad para inercia
-    if (Math.abs(dy) > 0.3) onWheel({ deltaY: dy * 1.2 })
+    if (Math.abs(dy) > 0.3) onWheel({ deltaY: dy * TOUCH_SENS })
   }
 
   _activeTouchEnd = () => {
@@ -459,6 +601,9 @@ export function startJourney(onComplete, onAutoPlayEnd) {
   // Reset approach freeze state for a fresh journey
   _approachFrozen = false
   _approachDone   = false
+  // Reset project-stop state (por si quedó de un loop anterior)
+  if (_projectTween) { _projectTween.kill(); _projectTween = null }
+  _projGliding   = false
 
   hideSectionText('studio')
   setTimeout(() => showSectionText('process'), 600)

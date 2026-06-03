@@ -628,6 +628,67 @@ const _videoTexPerSemilla = CONFIG.projects.map((p) => {
   return tex
 })
 
+// ── Título de cada card (texto centrado, MAYÚSCULA, blanco, Chakra Petch) ─────
+// Se dibuja en un canvas transparente y se compone sobre el video dentro del
+// shader de la semilla (ver _inyectarCorners) → queda pegado y centrado en la
+// tarjeta 3D. El canvas se redibuja con el aspecto real de la card.
+const _seedTitleTextures = CONFIG.projects.map(() => {
+  const c = document.createElement('canvas')
+  c.width = 1024; c.height = 576
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.minFilter  = THREE.LinearFilter
+  tex.magFilter  = THREE.LinearFilter
+  tex._canvas = c
+  return tex
+})
+
+function _drawSeedTitle(idx, title, aspect) {
+  const tex = _seedTitleTextures[idx]
+  if (!tex) return
+  const text = String(title ?? '').toUpperCase()
+  const asp  = aspect && aspect > 1e-3 ? aspect : (16 / 9)
+  const W = 1024, H = Math.max(2, Math.round(W / asp))
+  const c = tex._canvas
+  c.width = W; c.height = H
+
+  document.fonts.load(`500 96px "Chakra Petch"`).then(() => {
+    const ctx = c.getContext('2d')
+    ctx.clearRect(0, 0, W, H)
+    ctx.textAlign    = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle    = '#ffffff'
+
+    const maxW = W * 0.62
+    // Ajusta el cuerpo de la fuente para que el título entre en una sola línea.
+    let size = Math.round(H * 0.115)
+    const fit = (s) => { ctx.font = `500 ${s}px "Chakra Petch", sans-serif`; return ctx.measureText(text).width }
+    while (size > 8 && fit(size) > maxW) size -= 2
+
+    // Si aún muy ancho (títulos largos), parte en 2 líneas por el espacio central.
+    if (fit(size) > maxW && text.includes(' ')) {
+      const words = text.split(' ')
+      const mid = Math.ceil(words.length / 2)
+      const l1 = words.slice(0, mid).join(' ')
+      const l2 = words.slice(mid).join(' ')
+      size = Math.round(H * 0.115)
+      const fit2 = (s) => {
+        ctx.font = `500 ${s}px "Chakra Petch", sans-serif`
+        return Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width)
+      }
+      while (size > 10 && fit2(size) > maxW) size -= 2
+      ctx.font = `500 ${size}px "Chakra Petch", sans-serif`
+      const lh = size * 1.15
+      ctx.fillText(l1, W / 2, H / 2 - lh / 2)
+      ctx.fillText(l2, W / 2, H / 2 + lh / 2)
+    } else {
+      ctx.font = `500 ${size}px "Chakra Petch", sans-serif`
+      ctx.fillText(text, W / 2, H / 2)
+    }
+    tex.needsUpdate = true
+  })
+}
+
 // iOS/mobile: el autoplay de los videos sin gesto está bloqueado → en el primer
 // gesto del usuario reintentamos reproducir todos los videos de las semillas.
 function _unlockSeedVideos() {
@@ -962,17 +1023,23 @@ function _rectificarSemilla(node, proj) {
   // Aspecto real (ancho/alto) para el SDF de esquinas — fijo, no por derivadas
   const w = Math.hypot(p10[0] - p00[0], p10[1] - p00[1], p10[2] - p00[2])
   const h = Math.hypot(p01[0] - p00[0], p01[1] - p00[1], p01[2] - p00[2])
-  return h > 1e-6 ? w / h : 1
+  // flipX/flipY: el texto debe seguir la MISMA orientación que el video para no
+  // verse espejado (vSemillaUVNorm es simétrico; el video usa el uv volteado).
+  return { aspect: h > 1e-6 ? w / h : 1, flipX, flipY }
 }
 
 // ── Corner SDF injector — solo redondea esquinas + bloom por contenido ───────
 // La geometría ya viene rectificada a un quad (ver esSemilla), así que NO hay
 // bisel: el shader solo recorta el rectángulo redondeado y, en la pasada de
 // bloom, realza el brillo del video.
-function _inyectarCorners(mat, key, aspect) {
+function _inyectarCorners(mat, key, aspect, textTex, textFlipX, textFlipY) {
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, _cornerUniforms)
-    shader.uniforms.uAspect = { value: aspect || 1 }
+    shader.uniforms.uAspect    = { value: aspect || 1 }
+    shader.uniforms.uTextMap   = { value: textTex || null }
+    shader.uniforms.uHasText   = { value: textTex ? 1 : 0 }
+    shader.uniforms.uTextFlipX = { value: textFlipX ? 1 : 0 }
+    shader.uniforms.uTextFlipY = { value: textFlipY ? 1 : 0 }
 
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
@@ -993,6 +1060,10 @@ function _inyectarCorners(mat, key, aspect) {
        uniform float uInBloom;        // 1 durante la pasada de bloom
        uniform float uBloomEmission;  // intensidad del bloom de las semillas
        uniform float uBloomThreshold; // piso propio de las semillas (resta a la emisión)
+       uniform sampler2D uTextMap;    // título de la card (blanco sobre transparente)
+       uniform float uHasText;
+       uniform float uTextFlipX;      // voltea el texto para que no quede espejado
+       uniform float uTextFlipY;
        varying vec2  vSemillaUVNorm;`,
     ).replace(
       '#include <dithering_fragment>',
@@ -1012,11 +1083,18 @@ function _inyectarCorners(mat, key, aspect) {
          if (uInBloom > 0.5) {
            vec3 _emit = max(diffuse * uBloomEmission - uBloomThreshold, 0.0);
            gl_FragColor = vec4(_emit, 1.0);
+         } else if (uHasText > 0.5) {
+           // Título centrado en blanco compuesto sobre el video (solo pasada normal).
+           vec2 _tuv = _uv;
+           if (uTextFlipX > 0.5) _tuv.x = 1.0 - _tuv.x;
+           if (uTextFlipY > 0.5) _tuv.y = 1.0 - _tuv.y;
+           vec4 _txt = texture2D(uTextMap, _tuv);
+           gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0), _txt.a);
          }
        }`,
     )
   }
-  mat.customProgramCacheKey = () => 'semillas-flat-v10-' + key
+  mat.customProgramCacheKey = () => 'semillas-flat-v12-' + key
 }
 
 // ── Esquinas redondeadas — GLSL SDF ──────────────────────────────────────────
@@ -1319,15 +1397,17 @@ export function applyMaterials(gltfScene) {
 
       // Reconstruye la tarjeta como un QUAD plano (rectángulo real) usando las 4
       // esquinas de UV de la malla original → imposible que dé bisel/hexágono.
-      const _aspect = _rectificarSemilla(node, _proj)
+      const _rect   = _rectificarSemilla(node, _proj) || {}
+      const _aspect = _rect.aspect ?? 1
       _drawSemillaCanvas(_idx, _proj)
+      _drawSeedTitle(_idx, _proj.title, _aspect)
       _vidTex.repeat.set(1, 1)
       _vidTex.offset.set(0, 0)
       _semillaBaseOffset[_idx] = { x: 0, y: 0 }
 
       _semillaMats.push(nuevo)
       _semillaMeshes.push(node)
-      _inyectarCorners(nuevo, _idx, _aspect)
+      _inyectarCorners(nuevo, _idx, _aspect, _seedTitleTextures[_idx], _rect.flipX, _rect.flipY)
       meshesSemillasArr.push(node)
       node.material = nuevo
       if (_seedBloom) node.layers.enable(BLOOM_LAYER)

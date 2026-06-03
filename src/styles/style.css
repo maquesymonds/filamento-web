@@ -391,7 +391,8 @@ body.use-radial-nav #sound-toggle { right: 32px; }
 
 #begin-btn:disabled { pointer-events: none; }
 
-#scroll-discover {
+#scroll-discover,
+#work-hint {
   position: fixed;
   top: 60px;
   left: 50%;
@@ -1569,7 +1570,8 @@ body.use-radial-nav #radial-nav.rn-active .rn-item   { pointer-events: auto; }
   }
 
   /* ── Nav hint — push higher on mobile ── */
-  #scroll-discover {
+  #scroll-discover,
+  #work-hint {
     top: 150px;
   }
 

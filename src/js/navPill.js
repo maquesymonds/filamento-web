@@ -2,11 +2,12 @@ import gsap                                                        from 'gsap'
 import { CONFIG }                                                 from './config.js'
 import { setAnimationTime, getAnimationTime, getAnimationDuration, getCamera } from './experience.js'
 import { showSectionText, hideSectionText, hideAllSectionText }     from './scroll.js'
-import { jumpScrollTo, stopJourney, restartLoop, releaseApproachFreeze, jumpToContactFromStart, startJourney } from './journey.js'
+import { jumpScrollTo, stopJourney, restartLoop, releaseApproachFreeze, jumpToContactFromStart, startJourney, advanceProjectStop } from './journey.js'
 import { startJungle }                                            from './audio.js'
 import { resetBeginButton, setIconClickFn, hideHeroText, activateHeroToNav } from './ui.js'
 import { transitionRootsColorBack, transitionPetalColorsBack }    from './materials.js'
 import { showButterflies, flyAwayButterflies }                     from './butterflies.js'
+import { isPanelOpen }                                             from './projectPanel.js'
 
 const _pill    = document.getElementById('nav-pill')
 const _menuBtn = document.getElementById('nav-pill-menu-btn')
@@ -247,6 +248,14 @@ export function initNavPill() {
           hideSectionText('process')
           if (!releaseApproachFreeze()) _jumpTo('work')
         })
+      } else if (s.id === 'work') {
+        // Work → la cámara frena en cada proyecto (semilla). Continue mueve la
+        // cámara al siguiente; tras el último salta a Contact. Si por algún
+        // motivo no hay paradas activas (ej. salto de menú), cae al jump normal.
+        cont.addEventListener('click', () => {
+          _close()
+          if (!advanceProjectStop()) _animateTo(next.id)
+        })
       } else {
         cont.addEventListener('click', () => _animateTo(next.id))
       }
@@ -265,17 +274,26 @@ export function initNavPill() {
     }
   })
 
-  // Arrow key navigation
+  // Arrow key navigation — ← = Go back, → = Continue (de la sección visible).
   window.addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
 
+    // Con un proyecto abierto las flechas no navegan secciones.
+    if (isPanelOpen()) return
+
     // ── Section navigation (experience running) ───────────────────
+    // Bloque visible: usamos el estilo computado (robusto ante gsap/transiciones).
     const activeBlock = [...document.querySelectorAll('.scroll-text-block')]
-      .find(b => parseFloat(b.style.opacity) === 1)
+      .find(b => {
+        const cs = getComputedStyle(b)
+        return cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.5
+      })
     if (activeBlock) {
       e.preventDefault()
-      if (e.key === 'ArrowLeft') activeBlock.querySelector('.go-back-btn')?.click()
-      else                       activeBlock.querySelector('.continue-btn')?.click()
+      const btn = e.key === 'ArrowLeft'
+        ? activeBlock.querySelector('.go-back-btn')
+        : activeBlock.querySelector('.continue-btn')
+      btn?.click()
       return
     }
 

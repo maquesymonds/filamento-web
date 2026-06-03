@@ -39,6 +39,9 @@ export const CONFIG = {
 
   // ── Journey (auto-play, sin scroll) ─────────────────────────
   journey: {
+    // Paradas en cada proyecto (semillas). La cámara frena en cada uno y avanza
+    // al siguiente con el botón Continue. Tras el último salta a Contact (358).
+    projectStops:      [256, 271, 285, 302],
     autoPlayEndFrame:  256,  // auto-play se detiene aquí → scroll toma el control
     endFrame:          249,  // FLOR_GRANDE — chip float se detiene aquí
     duration:          8,    // duración del auto-play en segundos (ease: none = velocidad constante)

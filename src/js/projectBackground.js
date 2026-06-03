@@ -583,6 +583,11 @@ function _onMouse(e) {
   _mouseUV.set(e.clientX / window.innerWidth, 1 - e.clientY / window.innerHeight)
 }
 
+// Mobile: drive el ripple desde un drag (coords de pantalla, igual que el mouse).
+export function setPointerUV(clientX, clientY) {
+  _mouseUV.set(clientX / window.innerWidth, 1 - clientY / window.innerHeight)
+}
+
 function _onResize() {
   if (!_renderer) return
   _renderer.setSize(window.innerWidth, window.innerHeight)

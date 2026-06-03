@@ -176,6 +176,7 @@ function _applyWorkFov(entering) {
 }
 
 const _discoverEl = () => document.getElementById('scroll-discover')
+const _workHintEl = () => document.getElementById('work-hint')
 
 export function showSectionText(sectionId) {
   if (sectionId === 'contact') showPollenText()
@@ -186,6 +187,11 @@ export function showSectionText(sectionId) {
   if (sectionId === 'studio') {
     const d = _discoverEl()
     if (d) { gsap.killTweensOf(d); gsap.to(d, { opacity: 1, duration: 1.2, ease: 'power2.out', delay: 0.5 }) }
+  }
+
+  if (sectionId === 'work') {
+    const w = _workHintEl()
+    if (w) { gsap.killTweensOf(w); gsap.to(w, { opacity: 1, duration: 1.2, ease: 'power2.out', delay: 0.5 }) }
   }
 
   _visibleSection = sectionId
@@ -232,6 +238,11 @@ export function hideSectionText(sectionId) {
   if (sectionId === 'studio') {
     const d = _discoverEl()
     if (d) { gsap.killTweensOf(d); gsap.to(d, { opacity: 0, duration: 0.5, ease: 'power2.in' }) }
+  }
+
+  if (sectionId === 'work') {
+    const w = _workHintEl()
+    if (w) { gsap.killTweensOf(w); gsap.to(w, { opacity: 0, duration: 0.5, ease: 'power2.in' }) }
   }
 
   if (_visibleSection === sectionId) _visibleSection = null
