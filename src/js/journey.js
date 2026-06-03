@@ -108,6 +108,10 @@ export function jumpScrollTo(t) {
 
 // Stop any active journey (auto-play tween + scroll listener) without triggering the loop.
 export function stopJourney() {
+  // Matar el intro si sigue corriendo: si no, su tween sobrescribe setAnimationTime
+  // cada frame durante los ~4.5s post-Start y la nav (work/etc.) dispara la
+  // transición radial pero la escena vuelve a Studio. No-op si el intro ya terminó.
+  killIntro()
   if (_autoPlayTween) { _autoPlayTween.kill(); _autoPlayTween = null }
   if (_inertiaRafId)     { cancelAnimationFrame(_inertiaRafId);                         _inertiaRafId     = null }
   _stopWheelSmooth()

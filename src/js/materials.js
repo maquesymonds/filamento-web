@@ -629,9 +629,11 @@ const _videoTexPerSemilla = CONFIG.projects.map((p) => {
 })
 
 // ── Título de cada card (texto centrado, MAYÚSCULA, blanco, Chakra Petch) ─────
-// Se dibuja en un canvas transparente y se compone sobre el video dentro del
-// shader de la semilla (ver _inyectarCorners) → queda pegado y centrado en la
-// tarjeta 3D. El canvas se redibuja con el aspecto real de la card.
+// Se dibuja en un canvas transparente y se usa como textura de un PLANO-LABEL
+// flotante ubicado por encima del borde superior de la tarjeta (ver
+// _crearLabelSemilla). El canvas tiene forma de label (ancho y bajo); el texto
+// va centrado para ocupar el plano completo. El aspecto que recibe es el del
+// LABEL (no el de la card) para que no se estire.
 const _seedTitleTextures = CONFIG.projects.map(() => {
   const c = document.createElement('canvas')
   c.width = 1024; c.height = 576
@@ -659,9 +661,10 @@ function _drawSeedTitle(idx, title, aspect) {
     ctx.textBaseline = 'middle'
     ctx.fillStyle    = '#ffffff'
 
-    const maxW = W * 0.62
-    // Ajusta el cuerpo de la fuente para que el título entre en una sola línea.
-    let size = Math.round(H * 0.115)
+    // Label flotante: el texto ocupa casi todo el ancho del plano y va centrado.
+    const maxW = W * 0.94
+    // Cuerpo base ≈ 62% del alto del label, se achica hasta entrar en el ancho.
+    let size = Math.round(H * 0.62)
     const fit = (s) => { ctx.font = `500 ${s}px "Chakra Petch", sans-serif`; return ctx.measureText(text).width }
     while (size > 8 && fit(size) > maxW) size -= 2
 
@@ -671,7 +674,7 @@ function _drawSeedTitle(idx, title, aspect) {
       const mid = Math.ceil(words.length / 2)
       const l1 = words.slice(0, mid).join(' ')
       const l2 = words.slice(mid).join(' ')
-      size = Math.round(H * 0.115)
+      size = Math.round(H * 0.42)
       const fit2 = (s) => {
         ctx.font = `500 ${s}px "Chakra Petch", sans-serif`
         return Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width)
@@ -1025,7 +1028,9 @@ function _rectificarSemilla(node, proj) {
   const h = Math.hypot(p01[0] - p00[0], p01[1] - p00[1], p01[2] - p00[2])
   // flipX/flipY: el texto debe seguir la MISMA orientación que el video para no
   // verse espejado (vSemillaUVNorm es simétrico; el video usa el uv volteado).
-  return { aspect: h > 1e-6 ? w / h : 1, flipX, flipY }
+  // p00/p10/p01: esquinas en espacio LOCAL del nodo → las usa _crearLabelSemilla
+  // para colgar el título flotante sobre el borde superior, coplanar a la card.
+  return { aspect: h > 1e-6 ? w / h : 1, flipX, flipY, p00, p10, p01 }
 }
 
 // ── Corner SDF injector — solo redondea esquinas + bloom por contenido ───────
@@ -1060,6 +1065,7 @@ function _inyectarCorners(mat, key, aspect, textTex, textFlipX, textFlipY) {
        uniform float uInBloom;        // 1 durante la pasada de bloom
        uniform float uBloomEmission;  // intensidad del bloom de las semillas
        uniform float uBloomThreshold; // piso propio de las semillas (resta a la emisión)
+       uniform float uBloomSaturation;// 1.0 = igual que antes; >1 mantiene el color de la portada en el glow
        uniform sampler2D uTextMap;    // título de la card (blanco sobre transparente)
        uniform float uHasText;
        uniform float uTextFlipX;      // voltea el texto para que no quede espejado
@@ -1081,7 +1087,13 @@ function _inyectarCorners(mat, key, aspect, textTex, textFlipX, textFlipY) {
          // intensidad), con un threshold propio (piso) para control fino e
          // independiente del threshold global del panel "Bloom".
          if (uInBloom > 0.5) {
-           vec3 _emit = max(diffuse * uBloomEmission - uBloomThreshold, 0.0);
+           vec3 _emit = diffuse * uBloomEmission;
+           // Saturación del glow: 1.0 = idéntico a antes. >1 separa los canales
+           // respecto a su luminancia → el bloom conserva el color de la portada
+           // en vez de blanquearse al subir la emisión. <1 lo desatura.
+           float _lum = dot(_emit, vec3(0.299, 0.587, 0.114));
+           _emit = mix(vec3(_lum), _emit, uBloomSaturation);
+           _emit = max(_emit - uBloomThreshold, 0.0);
            gl_FragColor = vec4(_emit, 1.0);
          } else if (uHasText > 0.5) {
            // Título centrado en blanco compuesto sobre el video (solo pasada normal).
@@ -1094,18 +1106,117 @@ function _inyectarCorners(mat, key, aspect, textTex, textFlipX, textFlipY) {
        }`,
     )
   }
-  mat.customProgramCacheKey = () => 'semillas-flat-v12-' + key
+  mat.customProgramCacheKey = () => 'semillas-flat-v13-' + key
 }
 
 // ── Esquinas redondeadas — GLSL SDF ──────────────────────────────────────────
 
 const _semillaMats    = []
 const _semillaMeshes  = []   // parallel to _semillaMats — for bloom layer toggle
+const _labelMats      = []   // materiales de los títulos flotantes (opacidad sigue al fade)
+// Glow propio de los títulos: en la pasada de bloom el texto se multiplica por
+// uLabelGlow (1 = brillo actual; <1 = menos glow; 0 = sin glow). En la pasada
+// normal el texto queda blanco intacto. uInBloom lo togglea setSemillasBloomPass.
+const _labelUniforms  = {
+  uInBloom:   { value: 0 },
+  uLabelGlow: { value: 1.0 },
+}
+
+// ── Label flotante por semilla ───────────────────────────────────────────────
+// Crea un quad con el título y lo cuelga como HIJO de la tarjeta, justo por
+// encima de su borde superior y coplanar → hereda posición, rotación,
+// perspectiva, movimiento y visibilidad de la card. El texto NO va dentro del
+// video; vive en este plano externo. Blanco y plano (sin bloom).
+const _LABEL_GAP_FRAC    = -0.02  // separación sobre el borde — negativo = más abajo (pegado al tope)
+const _LABEL_HEIGHT_FRAC = 0.18   // alto del label como fracción del alto de la card
+
+function _crearLabelSemilla(node, rect, idx) {
+  if (!rect || !rect.p00 || !rect.p10 || !rect.p01) return
+  const tex = _seedTitleTextures[idx]
+  if (!tex) return
+
+  const V = THREE.Vector3
+  const p00 = new V().fromArray(rect.p00)
+  const edgeU = new V().fromArray(rect.p10).sub(p00)   // dirección ancho (param u)
+  const edgeV = new V().fromArray(rect.p01).sub(p00)   // dirección alto  (param v)
+
+  // El borde superior VISIBLE de la card está del lado +v si la card no está
+  // volteada (flipY), o del lado -v si lo está. outwardSign apunta "hacia afuera
+  // y arriba" en unidades de param-v.
+  const outwardSign = rect.flipY ? -1 : 1
+  const vTopCard = outwardSign > 0 ? 1 : 0
+  const vInner = vTopCard + outwardSign * _LABEL_GAP_FRAC                       // borde del label cercano a la card
+  const vOuter = vInner   + outwardSign * _LABEL_HEIGHT_FRAC                    // borde lejano
+
+  // Posición de una esquina en espacio local: P(u,v) = p00 + edgeU*u + edgeV*v
+  const P = (u, v) => p00.clone().addScaledVector(edgeU, u).addScaledVector(edgeV, v)
+  const cIn0  = P(0, vInner), cIn1 = P(1, vInner)
+  const cOut1 = P(1, vOuter), cOut0 = P(0, vOuter)
+
+  // UV: vOuter = arriba del texto (canvas flipY → uv.v=1 es el tope del canvas).
+  // Horizontal sigue flipX para que el texto no salga espejado, igual que el video.
+  const uL = rect.flipX ? 1 : 0, uR = rect.flipX ? 0 : 1
+  const positions = new Float32Array([
+    cIn0.x,  cIn0.y,  cIn0.z,
+    cIn1.x,  cIn1.y,  cIn1.z,
+    cOut1.x, cOut1.y, cOut1.z,
+    cOut0.x, cOut0.y, cOut0.z,
+  ])
+  const uvs = new Float32Array([
+    uL, 0,
+    uR, 0,
+    uR, 1,
+    uL, 1,
+  ])
+
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  g.setAttribute('uv',       new THREE.BufferAttribute(uvs, 2))
+  g.setIndex([0, 1, 2, 0, 2, 3])
+  g.computeBoundingSphere()
+
+  const mat = new THREE.MeshBasicMaterial({
+    map:         tex,
+    transparent: true,
+    opacity:     _seedVisFactor,   // opaco salvo el fade — NO sigue la transparencia del glass
+    alphaTest:   0.04,             // descarta píxeles ~transparentes → fondo 100% limpio (sin halo)
+    color:       0xffffff,         // blanco, plano (sin bloom)
+    side:        THREE.DoubleSide,
+    depthWrite:  false,            // no escribe profundidad: no recorta nada detrás
+    depthTest:   true,
+  })
+
+  // Glow controlable: solo durante la pasada de bloom multiplica el texto por
+  // uLabelGlow → así el panel "Glow Texto" sube/baja el brillo del título sin
+  // tocar la pasada normal ni el bloom global.
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uInBloom   = _labelUniforms.uInBloom
+    shader.uniforms.uLabelGlow = _labelUniforms.uLabelGlow
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>',
+        `#include <common>
+         uniform float uInBloom;
+         uniform float uLabelGlow;`)
+      .replace('#include <dithering_fragment>',
+        `#include <dithering_fragment>
+         if (uInBloom > 0.5) gl_FragColor.rgb *= uLabelGlow;`)
+  }
+  mat.customProgramCacheKey = () => 'label-glow-v1'
+
+  const label = new THREE.Mesh(g, mat)
+  label.userData.skipTraverse = true   // no reprocesar en applyMaterials
+  label.renderOrder = 2
+  label.layers.enable(BLOOM_LAYER)      // el texto blanco participa del bloom → glow
+  node.add(label)                       // hijo → hereda transform/visibilidad de la card
+  _labelMats.push(mat)
+}
+
 const _cornerUniforms = {
   uCornerRadius:   { value: 0.06 },
   uInBloom:        { value: 0 },
   uBloomEmission:  { value: 1.5 },
   uBloomThreshold: { value: 0 },   // piso propio de las semillas (independiente del global)
+  uBloomSaturation:{ value: 1.0 }, // 1 = look actual; >1 conserva el color de la portada en el glow
 }
 
 // Llamado desde bloom.js para marcar la pasada de bloom de las semillas.
@@ -1113,6 +1224,7 @@ const _cornerUniforms = {
 // (lámpara/vidrio central, renderizado en negro) recorta el bloom de la tarjeta.
 export function setSemillasBloomPass(on) {
   _cornerUniforms.uInBloom.value = on ? 1 : 0
+  _labelUniforms.uInBloom.value  = on ? 1 : 0   // glow propio de los títulos
   for (const mat of _semillaMats) mat.depthTest = !on
 }
 
@@ -1131,13 +1243,28 @@ const _esquinasObj = sheet.object('Semillas Esquinas', {
 })
 _esquinasObj.onValuesChange((v) => { _cornerUniforms.uCornerRadius.value = v.cornerRadius })
 
+// ── Panel Theatre: Glow Texto ─────────────────────────────────────────────────
+// Controla SOLO el glow de los títulos flotantes (independiente del bloom global
+// y de la pasada normal). 1 = brillo actual, baja para menos glow, 0 = sin glow.
+const _glowTextoObj = sheet.object('Glow Texto', {
+  glow: types.number(1.0, { range: [0, 4], nudgeMultiplier: 0.05 }),
+})
+_glowTextoObj.onValuesChange((v) => { _labelUniforms.uLabelGlow.value = v.glow })
+
 // ── Panel Theatre: Glass Semillas ─────────────────────────────────────────────
 // Material plano (MeshBasicMaterial, sin luz): se ve el video tal cual.
 // Solo exponemos opacidad, color (tinte sobre el video) y bloom on/off.
 
 // Color base del panel y multiplicador de hover por semilla — se componen:
 // color final = base * hoverMul (hoverMul > 1 empuja al bloom).
-const _seedBaseColor = { r: 1, g: 1, b: 1 }
+// Tinte propio de cada semilla (por proyecto). Default blanco = sin cambio.
+// Color final de cada semilla = color propio × hoverMul.
+const _seedColorPerProject = [
+  { r: 1, g: 1, b: 1 },
+  { r: 1, g: 1, b: 1 },
+  { r: 1, g: 1, b: 1 },
+  { r: 1, g: 1, b: 1 },
+]
 const _seedHoverMul  = [1, 1, 1, 1]
 // Opacidad base del panel y factor de visibilidad del fade — se componen:
 // opacidad final = base * visFactor.
@@ -1158,10 +1285,11 @@ function _applySeedColors() {
   for (let i = 0; i < _semillaMats.length; i++) {
     const idx = _semillaMeshes[i]?.userData.semillaIndex ?? 0
     const mul = _seedIsMobile ? _seedHoverBoost : (_seedHoverMul[idx] ?? 1)
+    const pc  = _seedColorPerProject[idx] ?? _seedColorPerProject[0]
     _semillaMats[i].color.setRGB(
-      _seedBaseColor.r * mul,
-      _seedBaseColor.g * mul,
-      _seedBaseColor.b * mul,
+      pc.r * mul,
+      pc.g * mul,
+      pc.b * mul,
     )
   }
 }
@@ -1169,27 +1297,38 @@ function _applySeedColors() {
 function _applySeedOpacity() {
   const o = _seedBaseOpacity * _seedVisFactor
   for (const mat of _semillaMats) mat.opacity = o
+  // El label NO sigue la transparencia del glass (si no, el fondo se cuela por el
+  // texto y se ve grisáceo); solo sigue el fade de aparición/desaparición.
+  for (const mat of _labelMats)   mat.opacity = _seedVisFactor
 }
 
 const _glassObj = sheet.object('Glass Semillas', {
   opacity:        types.number(1.0, { range: [0, 1],   nudgeMultiplier: 0.01 }),
-  color:          types.rgba({ r: 1, g: 1, b: 1, a: 1 }),
+  color1:         types.rgba({ r: 1, g: 1, b: 1, a: 1 }),   // tinte solo semilla 1 (proyecto 1)
+  color2:         types.rgba({ r: 1, g: 1, b: 1, a: 1 }),   // tinte solo semilla 2
+  color3:         types.rgba({ r: 1, g: 1, b: 1, a: 1 }),   // tinte solo semilla 3
+  color4:         types.rgba({ r: 1, g: 1, b: 1, a: 1 }),   // tinte solo semilla 4
   bloom:          types.boolean(false),
   bloomEmission:       types.number(1.5,  { range: [0, 8], nudgeMultiplier: 0.1 }),
   bloomThreshold:      types.number(0.0,  { range: [0, 2], nudgeMultiplier: 0.02 }),
   bloomThresholdMobile: types.number(0.0015, { range: [0, 2], nudgeMultiplier: 0.005 }),  // piso extra SOLO en mobile
+  bloomSaturation:     types.number(1.0,  { range: [0, 4], nudgeMultiplier: 0.05 }),  // 1 = look actual; >1 = glow con color de la portada
   hoverBoost:          types.number(1.8,  { range: [1, 5], nudgeMultiplier: 0.05 }),
 }, { reconfigure: true })
 
 _glassObj.onValuesChange((v) => {
-  _seedBaseColor.r = v.color.r
-  _seedBaseColor.g = v.color.g
-  _seedBaseColor.b = v.color.b
+  const _perProj = [v.color1, v.color2, v.color3, v.color4]
+  for (let i = 0; i < 4; i++) {
+    _seedColorPerProject[i].r = _perProj[i].r
+    _seedColorPerProject[i].g = _perProj[i].g
+    _seedColorPerProject[i].b = _perProj[i].b
+  }
   _seedBaseOpacity = v.opacity
   _seedBloom       = v.bloom
   _seedMobileThresholdAdd = v.bloomThresholdMobile
   _cornerUniforms.uBloomEmission.value  = v.bloomEmission
   _cornerUniforms.uBloomThreshold.value = v.bloomThreshold + (_seedIsMobile ? _seedMobileThresholdAdd : 0)
+  _cornerUniforms.uBloomSaturation.value = v.bloomSaturation
   _seedHoverBoost = v.hoverBoost
   _applySeedColors()
   _applySeedOpacity()
@@ -1209,10 +1348,17 @@ export function initSemillaPickers(scene) {
   const mat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })
 
   const byIdx = new Map()
+  const _tmpBox = new THREE.Box3()
   for (const mesh of meshesSemillasArr) {
     const idx = mesh.userData.semillaIndex
     if (idx === undefined) continue
-    const bb  = new THREE.Box3().setFromObject(mesh)
+    // bbox SOLO de la geometría de la card (no setFromObject) → excluye el label
+    // flotante que ahora cuelga como hijo, así el picker no se corre hacia arriba.
+    const geo2 = mesh.geometry
+    if (!geo2) continue
+    if (!geo2.boundingBox) geo2.computeBoundingBox()
+    mesh.updateWorldMatrix(true, false)
+    const bb  = _tmpBox.copy(geo2.boundingBox).applyMatrix4(mesh.matrixWorld)
     const c   = bb.getCenter(new THREE.Vector3())
     if (!byIdx.has(idx)) byIdx.set(idx, { x: 0, y: 0, z: 0, n: 0 })
     const v = byIdx.get(idx)
@@ -1380,9 +1526,10 @@ export function applyMaterials(gltfScene) {
       // El video se ve tal cual; opacidad/color/bloom se controlan en el panel.
       const _vidTex = _videoTexPerSemilla[_idx] ?? _texPerSemilla[_idx] ?? _texPerSemilla[0]
       const _initMul = _seedIsMobile ? _seedHoverBoost : 1   // mobile: arranca con boost (sin hover)
+      const _initPC  = _seedColorPerProject[_idx] ?? _seedColorPerProject[0]
       const seedMat = new THREE.MeshBasicMaterial({
         map:         _vidTex,
-        color:       new THREE.Color(_seedBaseColor.r * _initMul, _seedBaseColor.g * _initMul, _seedBaseColor.b * _initMul),
+        color:       new THREE.Color(_initPC.r * _initMul, _initPC.g * _initMul, _initPC.b * _initMul),
         transparent: true,   // siempre: deja que el panel maneje opacity en vivo
         opacity:     _seedBaseOpacity * _seedVisFactor,
         side:        THREE.DoubleSide,  // quad plano: visible de ambos lados
@@ -1400,14 +1547,19 @@ export function applyMaterials(gltfScene) {
       const _rect   = _rectificarSemilla(node, _proj) || {}
       const _aspect = _rect.aspect ?? 1
       _drawSemillaCanvas(_idx, _proj)
-      _drawSeedTitle(_idx, _proj.title, _aspect)
+      // El título ahora vive en un LABEL flotante (no dentro del video). Su canvas
+      // usa el aspecto del label = aspecto_card / alto_label para no estirarse.
+      const _labelAspect = _aspect / _LABEL_HEIGHT_FRAC
+      _drawSeedTitle(_idx, _proj.title, _labelAspect)
       _vidTex.repeat.set(1, 1)
       _vidTex.offset.set(0, 0)
       _semillaBaseOffset[_idx] = { x: 0, y: 0 }
 
       _semillaMats.push(nuevo)
       _semillaMeshes.push(node)
-      _inyectarCorners(nuevo, _idx, _aspect, _seedTitleTextures[_idx], _rect.flipX, _rect.flipY)
+      // null en textTex → el shader de la card YA NO compone texto sobre el video.
+      _inyectarCorners(nuevo, _idx, _aspect, null, _rect.flipX, _rect.flipY)
+      _crearLabelSemilla(node, _rect, _idx)
       meshesSemillasArr.push(node)
       node.material = nuevo
       if (_seedBloom) node.layers.enable(BLOOM_LAYER)
