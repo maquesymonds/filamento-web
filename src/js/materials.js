@@ -1152,7 +1152,7 @@ const _seedIsMobile  = window.matchMedia('(max-width: 768px)').matches
 // umbral global), subimos un poco el threshold propio de las semillas SOLO en
 // mobile → recorta el bloom de forma gradual. 0 = igual que desktop.
 // Se controla desde el panel "Glass Semillas" (bloomThresholdMobile).
-let _seedMobileThresholdAdd = 0.007
+let _seedMobileThresholdAdd = 0.0015
 
 function _applySeedColors() {
   for (let i = 0; i < _semillaMats.length; i++) {
@@ -1177,7 +1177,7 @@ const _glassObj = sheet.object('Glass Semillas', {
   bloom:          types.boolean(false),
   bloomEmission:       types.number(1.5,  { range: [0, 8], nudgeMultiplier: 0.1 }),
   bloomThreshold:      types.number(0.0,  { range: [0, 2], nudgeMultiplier: 0.02 }),
-  bloomThresholdMobile: types.number(0.007, { range: [0, 2], nudgeMultiplier: 0.005 }),  // piso extra SOLO en mobile
+  bloomThresholdMobile: types.number(0.0015, { range: [0, 2], nudgeMultiplier: 0.005 }),  // piso extra SOLO en mobile
   hoverBoost:          types.number(1.8,  { range: [1, 5], nudgeMultiplier: 0.05 }),
 }, { reconfigure: true })
 
