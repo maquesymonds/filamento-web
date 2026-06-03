@@ -45,9 +45,11 @@ let _inertiaRafId     = null
 // o con el botón Continue, que la mueve (tween) hasta el siguiente proyecto.
 // _projGliding solo es true durante ese tween del botón (lock momentáneo).
 let _projectStopFn = null     // botón Continue → glide al siguiente proyecto
+let _projectBackFn = null     // botón Back → glide al proyecto anterior
 let _projGliding   = false    // true solo mientras corre el tween del botón
 let _projectTween  = null     // tween activo del glide entre proyectos
 export function advanceProjectStop() { return _projectStopFn ? _projectStopFn() : false }
+export function retreatProjectStop() { return _projectBackFn ? _projectBackFn() : false }
 
 // Suavizado del mouse wheel — la rueda manda saltos discretos grandes y
 // espaciados (a tirones); el trackpad/touch mandan deltas chicos y continuos.
@@ -118,6 +120,7 @@ export function stopJourney() {
   clearTimeout(_processTimeout); _processTimeout = null
   if (_projectTween) { _projectTween.kill(); _projectTween = null }
   _projectStopFn = null
+  _projectBackFn = null
   _projGliding   = false
   _seekFn = null
   _approachFrozen = false
@@ -189,28 +192,31 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
   }
 
   // ── Paradas en cada proyecto (semillas) ────────────────────────────────────
-  // Frames de parada. El primero (256) es el handoff del auto-play (la cámara ya
-  // queda ahí), así que los freezes del scroll son los que están POR DELANTE del
-  // arranque (271, 285, 302). El scroll frena en cada uno (con una breve pausa) y
-  // sigue solo con scroll hacia adelante; el botón Continue hace el glide.
-  const _allStops        = (CONFIG.journey.projectStops ?? [256, 271, 285, 302]).map(f => f / fps)
+  // _projFrames son los 4 proyectos [256,271,285,302]. _projPos es el índice del
+  // proyecto en el que está la cámara (0..3), o length (=4) cuando está en Contact.
+  // El scroll frena al cruzar cada proyecto hacia adelante (con una breve pausa);
+  // Continue avanza al siguiente y Back retrocede al anterior (espejo), llegando
+  // a Contact tras el último y volviendo a Contact→último proyecto con Back.
+  const _projFrames      = (CONFIG.journey.projectStops ?? [256, 271, 285, 302]).map(f => f / fps)
   const _contactStopTime = ((CONFIG.scroll.sections.find(s => s.id === 'contact')?.navFrame) ?? 358) / fps
-  const _projFreezeTimes = _allStops.filter(tt => tt > startAt + (1.5 / fps))   // solo los de adelante
   const PROJ_COOLDOWN    = 450    // ms de pausa mínima en cada proyecto antes de poder seguir
-  let _projIdx           = 0      // índice del próximo freeze a encontrar
-  let _projFrozen        = false  // true mientras está frenada en un freeze
+  const PROJ_EPS         = 1.5 / fps
+  let _projFrozen        = false  // true mientras está frenada en un proyecto
   let _projFreezeUntil   = 0      // timestamp hasta el cual se mantiene el freeze
+  // Posición inicial según startAt (handoff 256 → 0; contact → length)
+  let _projPos = 0
+  for (let i = 0; i < _projFrames.length; i++) if (startAt >= _projFrames[i] - PROJ_EPS) _projPos = i
+  if (startAt >= _contactStopTime - PROJ_EPS) _projPos = _projFrames.length
 
-  // Botón Continue → mueve la cámara (tween) hasta el siguiente proyecto y la deja
-  // frenada ahí; tras el último, va a Contact y libera el scroll para el loop.
-  _projectStopFn = () => {
-    if (_projGliding) return true
-    const targetIdx = _projFrozen ? _projIdx + 1 : _projIdx
-    const toContact = targetIdx >= _projFreezeTimes.length
-    const toT       = toContact ? _contactStopTime : _projFreezeTimes[targetIdx]
-    if (!toContact && toT <= scroll + 1e-4) return false   // nada por delante
-
+  // Glide genérico de la cámara a un tiempo destino; al terminar deja la cámara
+  // frenada en ese proyecto (o suelta en Contact).
+  const _glideTo = (toT, { toContact = false, fromContact = false, frozenPos = -1 } = {}) => {
     _projGliding = true
+    if (fromContact) {                     // volviendo de Contact → restaurar texto Work
+      _contactShown = false
+      hideSectionText('contact')
+      setTimeout(() => { if (!_contactShown) showSectionText('work') }, 300)
+    }
     const tw = { v: scroll }
     _projectTween = gsap.to(tw, {
       v:        toT,
@@ -228,18 +234,38 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
         _projGliding  = false
         scroll        = toT
         if (toContact) {
-          _projIdx      = _projFreezeTimes.length
+          _projPos      = _projFrames.length
           _projFrozen   = false
           _contactShown = true
           hideSectionText('work')
           setTimeout(() => showSectionText('contact'), 300)
         } else {
-          _projIdx         = targetIdx
+          _projPos         = frozenPos
           _projFrozen      = true
           _projFreezeUntil = performance.now() + PROJ_COOLDOWN
         }
       },
     })
+  }
+
+  // Botón Continue → siguiente proyecto; tras el último, va a Contact.
+  _projectStopFn = () => {
+    if (_projGliding) return true
+    const targetPos = _projPos + 1
+    const toContact = targetPos >= _projFrames.length
+    _glideTo(toContact ? _contactStopTime : _projFrames[targetPos], { toContact, frozenPos: targetPos })
+    return true
+  }
+
+  // Botón Back → proyecto anterior (espejo). Desde Contact vuelve al último
+  // proyecto; en el primero (256) devuelve false para que el caller haga el
+  // go-back normal (a Approach/process).
+  _projectBackFn = () => {
+    if (_projGliding) return true
+    const fromContact = _projPos >= _projFrames.length
+    const targetPos   = fromContact ? _projFrames.length - 1 : _projPos - 1
+    if (targetPos < 0) return false
+    _glideTo(_projFrames[targetPos], { fromContact, frozenPos: targetPos })
     return true
   }
 
@@ -310,23 +336,33 @@ export function enableEndScroll(fromTime, startAt = fromTime) {
     }
 
     // ── Paradas en proyectos (semillas) ──────────────────────────────────────
-    // Al cruzar un freeze hacia adelante, la cámara se clava ahí. Para seguir:
+    // Al cruzar un proyecto hacia adelante, la cámara se clava ahí. Para seguir:
     // scroll hacia adelante (tras una breve pausa) o el botón Continue. Hacia
-    // atrás libera el freeze (vuelve a frenar al pasar de nuevo hacia adelante).
-    if (_projIdx < _projFreezeTimes.length) {
-      const stopT = _projFreezeTimes[_projIdx]
-      if (!_projFrozen) {
-        if (delta > 0 && scroll >= stopT) {
-          _projFrozen      = true
-          _projFreezeUntil = performance.now() + PROJ_COOLDOWN
-          scroll = stopT
-        }
-      } else if (delta < 0) {
-        _projFrozen = false                       // scroll atrás → libera
+    // atrás libera y, al cruzar por debajo, baja de proyecto (re-frena al volver).
+    if (_projFrozen) {
+      if (delta < 0) {
+        _projFrozen = false                                    // scroll atrás → libera
       } else if (performance.now() >= _projFreezeUntil) {
-        _projFrozen = false; _projIdx++           // pasó la pausa → sigue de largo
+        _projFrozen = false                                    // pasó la pausa → sigue de largo
       } else {
-        scroll = stopT                            // mantener frenado durante la pausa
+        scroll = _projFrames[_projPos]                         // mantener frenado durante la pausa
+      }
+    } else {
+      // Frame de cada posición (length = Contact) para ubicar _projPos por scroll.
+      const _frameAt = (pos) => (pos < _projFrames.length ? _projFrames[pos] : _contactStopTime)
+      // Bajar de proyecto al retroceder por debajo del actual (incluye salir de Contact).
+      if (delta < 0) {
+        while (_projPos > 0 && scroll < _frameAt(_projPos) - PROJ_EPS) _projPos--
+      }
+      const _aheadPos = _projPos + 1
+      if (_aheadPos < _projFrames.length && delta > 0 && scroll >= _projFrames[_aheadPos]) {
+        // Frenar al cruzar el próximo proyecto hacia adelante.
+        _projPos         = _aheadPos
+        _projFrozen      = true
+        _projFreezeUntil = performance.now() + PROJ_COOLDOWN
+        scroll           = _projFrames[_aheadPos]
+      } else if (delta > 0 && scroll >= _contactStopTime - PROJ_EPS) {
+        _projPos = _projFrames.length   // llegó a Contact por scroll → Back vuelve al último proyecto
       }
     }
 

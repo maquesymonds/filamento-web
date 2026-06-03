@@ -2,7 +2,7 @@ import gsap                                                        from 'gsap'
 import { CONFIG }                                                 from './config.js'
 import { setAnimationTime, getAnimationTime, getAnimationDuration, getCamera } from './experience.js'
 import { showSectionText, hideSectionText, hideAllSectionText }     from './scroll.js'
-import { jumpScrollTo, stopJourney, restartLoop, releaseApproachFreeze, jumpToContactFromStart, startJourney, advanceProjectStop } from './journey.js'
+import { jumpScrollTo, stopJourney, restartLoop, releaseApproachFreeze, jumpToContactFromStart, startJourney, advanceProjectStop, retreatProjectStop } from './journey.js'
 import { startJungle }                                            from './audio.js'
 import { resetBeginButton, setIconClickFn, hideHeroText, activateHeroToNav } from './ui.js'
 import { transitionRootsColorBack, transitionPetalColorsBack }    from './materials.js'
@@ -218,6 +218,16 @@ export function initNavPill() {
       back.setAttribute('aria-label', 'Go back to start')
       back.innerHTML = `${_ARROW_SVG}<span>Go back</span>`
       back.addEventListener('click', () => _goToStart())
+    } else if (s.id === 'work' || s.id === 'contact') {
+      // Work/Contact → Back recorre las paradas de proyectos hacia atrás (espejo
+      // del Continue): Contact → 302 → 285 → 271 → 256 → (process). Si no hay
+      // paradas activas, cae al go-back normal a la sección anterior.
+      back.setAttribute('aria-label', `Go back to ${_sections[idx - 1].id}`)
+      back.innerHTML = `${_ARROW_SVG}<span>Go back</span>`
+      back.addEventListener('click', () => {
+        _close()
+        if (!retreatProjectStop()) _animateTo(_sections[idx - 1].id)
+      })
     } else {
       back.setAttribute('aria-label', `Go back to ${_sections[idx - 1].id}`)
       back.innerHTML = `${_ARROW_SVG}<span>Go back</span>`
