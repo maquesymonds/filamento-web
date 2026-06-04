@@ -1278,8 +1278,12 @@ const _seedIsMobile  = window.matchMedia('(max-width: 768px)').matches
 // Bloom apenas más bajo en mobile: en vez de tocar la emisión (binario por el
 // umbral global), subimos un poco el threshold propio de las semillas SOLO en
 // mobile → recorta el bloom de forma gradual. 0 = igual que desktop.
+// OJO: en mobile el color ya viene ×hoverBoost (1.4) por defecto, así que la
+// emisión de la semilla en la pasada de bloom es (1.4×1.4) − bloomThreshold,
+// o sea arranca en ~0.80 (vs ~0.24 del desktop en reposo). Por eso el add hay
+// que pensarlo grande: ~0.56 deja mobile = desktop en reposo, ~0.80 lo apaga.
 // Se controla desde el panel "Glass Semillas" (bloomThresholdMobile).
-let _seedMobileThresholdAdd = 0
+let _seedMobileThresholdAdd = 0.5
 
 function _applySeedColors() {
   for (let i = 0; i < _semillaMats.length; i++) {
@@ -1311,7 +1315,7 @@ const _glassObj = sheet.object('Glass Semillas', {
   bloom:          types.boolean(false),
   bloomEmission:       types.number(1.5,  { range: [0, 8], nudgeMultiplier: 0.1 }),
   bloomThreshold:      types.number(0.0,  { range: [0, 2], nudgeMultiplier: 0.02 }),
-  bloomThresholdMobile: types.number(0, { range: [0, 2], nudgeMultiplier: 0.005 }),  // piso extra SOLO en mobile (0 = igual que desktop)
+  bloomThresholdMobile: types.number(0.5, { range: [0, 2], nudgeMultiplier: 0.005 }),  // piso extra SOLO en mobile (0 = igual que desktop; ~0.5 = bloom de semillas similar al desktop en reposo)
   bloomSaturation:     types.number(1.0,  { range: [0, 4], nudgeMultiplier: 0.05 }),  // 1 = look actual; >1 = glow con color de la portada
   hoverBoost:          types.number(1.8,  { range: [1, 5], nudgeMultiplier: 0.05 }),
 }, { reconfigure: true })
