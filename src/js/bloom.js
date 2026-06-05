@@ -13,6 +13,13 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { types }           from '@theatre/core'
 import { sheet }           from './theatre.js'
 import { setSemillasBloomPass } from './materials.js'
+import { USE_LITE_MODE }   from './device.js'
+
+// En dispositivos low-end (o mobile) renderizamos el bloom a media resolución.
+// El UnrealBloomPass es la pasada más cara (varios blurs a pantalla completa);
+// bajar su resolución interna es lo que más FPS recupera. El composite final
+// igual se dibuja a pantalla completa (se reescala), así que casi no se nota.
+const _BLOOM_SCALE = USE_LITE_MODE ? 0.5 : 1.0
 
 const BLOOM_LAYER = 1
 const _darkMat   = new THREE.MeshBasicMaterial({ color: 0x000000 })
@@ -42,7 +49,7 @@ let _compositeCamera = null
 
 export function initBloom(renderer, scene) {
   _bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    new THREE.Vector2(window.innerWidth * _BLOOM_SCALE, window.innerHeight * _BLOOM_SCALE),
     1.0,  // strength
     0.5,  // radius
     0.5,  // threshold
@@ -53,6 +60,8 @@ export function initBloom(renderer, scene) {
   _bloomComposer.renderToScreen = false
   _bloomComposer.addPass(_bloomRenderPass)
   _bloomComposer.addPass(_bloomPass)
+  // Resolución interna del bloom (low-end = media). El composite se reescala.
+  _bloomComposer.setSize(window.innerWidth * _BLOOM_SCALE, window.innerHeight * _BLOOM_SCALE)
 
   // Quad aditivo que composta el bloom sobre el render principal
   _compositeScene  = new THREE.Scene()
@@ -70,7 +79,7 @@ export function initBloom(renderer, scene) {
   _compositeScene.add(quad)
 
   window.addEventListener('resize', () => {
-    _bloomComposer.setSize(window.innerWidth, window.innerHeight)
+    _bloomComposer.setSize(window.innerWidth * _BLOOM_SCALE, window.innerHeight * _BLOOM_SCALE)
   })
 
   // Panel Theatre: Bloom

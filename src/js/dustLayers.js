@@ -7,8 +7,13 @@
 import * as THREE from 'three'
 import { sheet }  from './theatre.js'
 import { types }  from '@theatre/core'
+import { USE_LITE_MODE } from './device.js'
 
 const MAX_COUNT = 260
+
+// En low-end/mobile recortamos la cantidad de motas (menos puntos a dibujar y
+// menos overdraw transparente). El panel Theatre sigue mandando, pero clampeamos.
+const _DUST_CAP = USE_LITE_MODE ? 90 : MAX_COUNT
 
 // Capas: yBias = banda de altura relativa | weight = opacidad relativa | sizeMul = tamaño
 // Las de abajo son más densas y grandes (polvo pesado); las de arriba, tenues.
@@ -186,7 +191,7 @@ function _initTheatre() {
   })
   obj.onValuesChange((v) => {
     _active  = v.activo
-    _count   = Math.round(v.cantidad)
+    _count   = Math.min(Math.round(v.cantidad), _DUST_CAP)
     _radius  = v.alcance
     _drift   = v.deriva
     if (_points) _points.visible = _active

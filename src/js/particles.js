@@ -8,6 +8,7 @@ import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer
 import { sheet } from './theatre.js'
 import { types } from '@theatre/core'
 import { BLOOM_LAYER } from './materials.js'
+import { USE_LITE_MODE } from './device.js'
 
 let _gpu           = null
 let _posVar        = null
@@ -416,7 +417,9 @@ function _initTheatrePanel() {
 export function initTrunkParticles(scene, trunkCenter = new THREE.Vector3(0, 0, 0)) {
   // aT (0-1 a lo largo de la hélice) y jitters baked — la posición real se calcula
   // en el shader con uniforms, así Theatre puede moverla en vivo sin rearmar geometría.
-  const COUNT   = 120000
+  // En low-end/mobile usamos la mitad de partículas: como aT = i/COUNT, baja la
+  // densidad de los anillos pero la forma y el alcance quedan iguales.
+  const COUNT   = USE_LITE_MODE ? 60000 : 120000
   const N_TURNS = 7
 
   const aT          = new Float32Array(COUNT)

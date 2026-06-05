@@ -7,7 +7,7 @@
 import gsap                                              from 'gsap'
 import { CONFIG }                                        from './config.js'
 import { playCircleOpen, playCircleClose }               from './circleTransition.js'
-import { getRenderer }                                   from './scene.js'
+import { getRenderer, setMainRenderPaused, renderMainOnce } from './scene.js'
 import { playPixelReveal }                               from './pixelReveal.js'
 import { initProjectBackground, showProjectBackground,
          hideProjectBackground, refreshImagePosition,
@@ -60,6 +60,9 @@ export function initProjectPanel() {
       _swipeTracking = Math.abs(dx) > Math.abs(dy)
     }
     if (_swipeTracking && dx > 0) {
+      // Al arrastrar empieza a verse la escena 3D detrás del panel → reanudar su
+      // render (idempotente; se llama por cada frame del gesto).
+      setMainRenderPaused(false)
       _panel.style.transition = 'none'
       _panel.style.transform  = `translateX(${dx}px)`
       _panel.style.opacity    = String(Math.max(0, 1 - dx / (window.innerWidth * 0.6)))
@@ -76,6 +79,7 @@ export function initProjectPanel() {
     if (tracking && dx > window.innerWidth * 0.35) {
       // Commit — slide off to the right
       _open = false
+      setMainRenderPaused(false)   // red de seguridad: la escena queda visible
       freezeScroll(900)
       if (_mediaCursor)  _mediaCursor.classList.remove('visible')
       if (_mediaOverlay) _mediaOverlay.style.display = 'none'
@@ -97,10 +101,14 @@ export function initProjectPanel() {
         },
       })
     } else {
-      // Cancel — snap back with bounce
+      // Cancel — snap back with bounce. Al volver a tapar la pantalla, re-pausar
+      // el render (si el gesto previo lo había reanudado y el panel sigue abierto).
       gsap.to(_panel, {
         x: 0, opacity: 1, duration: 0.4, ease: 'back.out(1.8)',
-        onComplete() { _panel.style.transform = ''; _panel.style.opacity = ''; _panel.style.transition = '' },
+        onComplete() {
+          _panel.style.transform = ''; _panel.style.opacity = ''; _panel.style.transition = ''
+          if (_open) setMainRenderPaused(true)
+        },
       })
     }
   }, { passive: true })
@@ -217,7 +225,13 @@ export function openProjectPanel(index, origin, threeCanvas) {
 
   playCircleOpen(threeCanvas, _lastOrigin, {
     duration:   0.85,
-    onComplete: _triggerTextReveal,
+    onComplete: () => {
+      _triggerTextReveal()
+      // El panel + jellyfish ya tapan toda la pantalla → pausamos el render de
+      // la escena 3D (no se ve). Guarda _open: si el usuario cerró antes de que
+      // termine la apertura, NO pausamos (si no quedaría congelada).
+      if (_open) setMainRenderPaused(true)
+    },
   })
 
   setTimeout(() => {
@@ -229,6 +243,8 @@ export function openProjectPanel(index, origin, threeCanvas) {
 export function closeProjectPanel() {
   if (!_panel || !_open) return
   _open = false
+  // Reanudar el render de la escena 3D ANTES de revelarla con el círculo.
+  setMainRenderPaused(false)
   document.body.classList.remove('project-open')
   freezeScroll(900)   // block journey wheel for 900ms so panel-close scroll doesn't bleed
   if (_mediaCursor)  _mediaCursor.classList.remove('visible')
@@ -249,6 +265,9 @@ export function closeProjectPanel() {
   }
 
   const origin = _lastOrigin
+  // Render 1 frame ya mismo: el snapshot del círculo toma el estado actual de la
+  // escena (no el último frame viejo que quedó en el buffer al pausar).
+  renderMainOnce()
   playCircleClose(getRenderer().domElement, origin, {
     duration:   0.75,
     onComplete: () => { _panel.style.display = 'none' },

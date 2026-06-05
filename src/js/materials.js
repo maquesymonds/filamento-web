@@ -6,6 +6,7 @@ import gsap from 'gsap'
 import { types } from '@theatre/core'
 import { sheet } from './theatre.js'
 import { CONFIG } from './config.js'
+import { USE_LITE_MODE } from './device.js'
 
 export const BLOOM_LAYER = 1
 
@@ -590,9 +591,10 @@ const _texPerSemilla  = _semillaCanvases.map(c => c.mapTex)
 const _emisPerSemilla = _semillaCanvases.map(c => c.emisTex)
 
 // VideoTexture per semilla — replaces the static canvas image map.
-// En mobile carga la versión liviana "<video>-mobile.mp4"; si no existe (404),
-// cae automáticamente al video web "<video>.mp4" para no quedar sin imagen.
-const _VID_IS_MOBILE = window.matchMedia('(max-width: 768px)').matches
+// En mobile (o en PC de baja potencia) carga la versión liviana
+// "<video>-mobile.mp4"; si no existe (404), cae automáticamente al video web
+// "<video>.mp4" para no quedar sin imagen. USE_LITE_MODE = mobile || low-end.
+const _VID_IS_MOBILE = USE_LITE_MODE
 const _videoTexPerSemilla = CONFIG.projects.map((p) => {
   if (!p.video) return null
   const vid = document.createElement('video')
@@ -1756,12 +1758,24 @@ export function semillaHoverLeave(idx) {
 
 let _semillaFadeTween = null
 
+// Pausa/reanuda TODOS los videos de las semillas. Un <video> pausado deja de
+// decodificar frames → ahorra CPU/GPU mientras las semillas no están en pantalla.
+function _setSeedVideosPlaying(playing) {
+  for (const tex of _videoTexPerSemilla) {
+    const vid = tex && tex.image
+    if (!vid || !vid.play) continue
+    if (playing) vid.play().catch(() => {})
+    else         vid.pause()
+  }
+}
+
 export function setSemillasVisible(visible, duration = 0.7) {
   if (_semillaFadeTween) { _semillaFadeTween.kill(); _semillaFadeTween = null }
 
   if (visible) {
     _semillaMeshes.forEach(m => { if (m) m.visible = true })
     semillaPickerMeshes.forEach(m => { if (m) m.visible = true })
+    _setSeedVideosPlaying(true)   // vuelven a verse → reanudar decodificación
   }
 
   // Tween el factor de visibilidad (0..1). La opacidad final es base*vis,
@@ -1777,6 +1791,7 @@ export function setSemillasVisible(visible, duration = 0.7) {
       if (!visible) {
         _semillaMeshes.forEach(m => { if (m) m.visible = false })
         semillaPickerMeshes.forEach(m => { if (m) m.visible = false })
+        _setSeedVideosPlaying(false)   // ya terminó el fade out → pausar videos
       }
       _semillaVisFactorSettle(visible)
       _semillaFadeTween = null
